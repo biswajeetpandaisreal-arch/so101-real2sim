@@ -1,0 +1,45 @@
+<mujoco model="so101_pick_place">
+  <!-- SO-101 (MuJoCo Menagerie, robotstudio_so101) on a table-top: pick the cube,
+       drop it in the basket. The cube pose is set at runtime by real2sim/sim_env.py. -->
+  <include file="so101.xml" />
+
+  <visual>
+    <headlight diffuse="0.35 0.35 0.35" ambient="0.3 0.3 0.3" specular="0 0 0" />
+    <global azimuth="150" elevation="-25" offwidth="640" offheight="480" />
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.85 0.88 0.92" rgb2="0.6 0.65 0.72"
+        width="512" height="512" />
+    <texture type="2d" name="table" builtin="checker" rgb1="0.78 0.76 0.72"
+        rgb2="0.74 0.72 0.68" width="300" height="300" />
+    <material name="table" texture="table" texuniform="true" texrepeat="8 8" />
+  </asset>
+
+  <worldbody>
+    <light pos="0.6 0.4 1.5" dir="-0.3 -0.2 -1" directional="true" diffuse="0.45 0.45 0.45" castshadow="true" />
+    <geom name="table" size="0 0 0.05" type="plane" material="table" />
+
+    <!-- Cameras used as policy observations -->
+    <camera name="top" pos="0.25 0 0.75" xyaxes="0 -1 0 1 0 0" fovy="55" />
+    <camera name="front" pos="0.62 0 0.32" xyaxes="0 1 0 -0.45 0 0.89" fovy="55" />
+
+    <!-- Cube: 4 x 4 x 6 cm, same collision setup as the digital-twin scene -->
+    <body name="cube" pos="0.25 0.12 0.03">
+      <freejoint />
+      <geom type="box" name="cube" size="0.02 0.02 0.03" condim="4"
+        friction="1.2 0.03 0.003" rgba="0.85 0.12 0.1 1" contype="2" conaffinity="1"
+        solref="0.01 1" mass="0.02" />
+    </body>
+
+    <!-- Basket: static open tray (14 x 14 cm, 3 cm walls) -->
+    <body name="basket" pos="0.25 -0.17 0">
+      <geom name="basket_bottom" type="box" size="0.07 0.07 0.003" pos="0 0 0.003"
+        rgba="0.2 0.35 0.65 1" condim="3" friction="1 0.03 0.003" />
+      <geom type="box" size="0.003 0.07 0.03" pos="0.07 0 0.033" rgba="0.2 0.35 0.65 1" />
+      <geom type="box" size="0.003 0.07 0.03" pos="-0.07 0 0.033" rgba="0.2 0.35 0.65 1" />
+      <geom type="box" size="0.07 0.003 0.03" pos="0 0.07 0.033" rgba="0.2 0.35 0.65 1" />
+      <geom type="box" size="0.07 0.003 0.03" pos="0 -0.07 0.033" rgba="0.2 0.35 0.65 1" />
+    </body>
+  </worldbody>
+</mujoco>
