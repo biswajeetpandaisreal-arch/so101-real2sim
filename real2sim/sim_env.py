@@ -7,19 +7,25 @@ gripper (the mapping is the one validated in the so101_digital_twin project).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import mujoco
 import numpy as np
 
 SCENE = Path(__file__).resolve().parent.parent / "sim" / "scene_task.xml"
+# Actuator / joint parameters identified from the real arm (scripts/sysid_fit.py).
+# Applied whenever the file exists; SO101Env(actuators=None) gives the
+# Menagerie defaults for comparison.
+ACTUATORS = Path(__file__).resolve().parent.parent / "sim" / "actuators_fitted.json"
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 FPS = 30                                    # LeRobot recording rate
 BASKET_HALF = 0.07 - 0.005                  # usable half-width of the basket floor (m)
 
 
 class SO101Env:
-    def __init__(self, scene: Path = SCENE, render_size: tuple[int, int] = (240, 320)):
+    def __init__(self, scene: Path = SCENE, render_size: tuple[int, int] = (240, 320),
+                 actuators: Path | dict | None = ACTUATORS):
         self.model = mujoco.MjModel.from_xml_path(str(scene))
         self.data = mujoco.MjData(self.model)
         self.jnt = [self.model.joint(n).id for n in JOINTS]
@@ -36,6 +42,34 @@ class SO101Env:
         self.substeps = max(1, round(1.0 / FPS / self.model.opt.timestep))
         self.render_size = render_size
         self._renderer = None
+        if isinstance(actuators, Path):
+            actuators = json.loads(actuators.read_text()) if actuators.exists() else None
+        self.actuators = actuators
+        if actuators:
+            self.set_actuators(actuators)
+
+    # ── actuator model ──────────────────────────────────────────────────────
+    def get_actuators(self) -> dict:
+        m = self.model
+        return {j: {"kp": float(m.actuator_gainprm[a, 0]), "kv": float(-m.actuator_biasprm[a, 2]),
+                    "damping": float(m.dof_damping[d]), "frictionloss": float(m.dof_frictionloss[d]),
+                    "armature": float(m.dof_armature[d])}
+                for j, a, d in zip(JOINTS, self.act, self.dadr)}
+
+    def set_actuators(self, params: dict):
+        """Per-joint {kp, kv, damping, frictionloss, armature} (any subset)."""
+        m = self.model
+        for j, a, d in zip(JOINTS, self.act, self.dadr):
+            p = params.get(j, {})
+            if "kp" in p:
+                m.actuator_gainprm[a, 0] = p["kp"]
+                m.actuator_biasprm[a, 1] = -p["kp"]
+            if "kv" in p:
+                m.actuator_biasprm[a, 2] = -p["kv"]
+            for key, arr in (("damping", m.dof_damping), ("frictionloss", m.dof_frictionloss),
+                             ("armature", m.dof_armature)):
+                if key in p:
+                    arr[d] = p[key]
 
     # ── unit conversion (LeRobot <-> MuJoCo) ────────────────────────────────
     def lerobot_to_rad(self, a: np.ndarray) -> np.ndarray:

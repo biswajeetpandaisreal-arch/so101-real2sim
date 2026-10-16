@@ -1,0 +1,12 @@
+name,role,fwd_cm,left_cm
+A,train,17,11
+B,train,25,11
+C,train,17,-3
+D,train,25,-3
+I1,interp,21,7
+I2,interp,19,1
+I3,interp,23,4
+E1,extrap,14,5
+E2,extrap,28,4
+E3,extrap,21,15
+basket,basket,21,-17

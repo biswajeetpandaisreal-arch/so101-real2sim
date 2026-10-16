@@ -66,8 +66,13 @@ def displacement_weight(T, t_grasp, t_release, t_descent, ramp_in=1.2, ramp_out=
     return np.where(t <= t_grasp, w_in, w_out)
 
 
-def generate(env, ik: SO101IK, actions, src_xy, src_yaw, new_xy, new_yaw):
-    """New joint-target trajectory (T x 6, LeRobot units) for the moved cube."""
+def generate(env, ik: SO101IK, actions, src_xy, src_yaw, new_xy, new_yaw, shift_timing="before"):
+    """New joint-target trajectory (T x 6, LeRobot units) for the moved cube.
+
+    shift_timing="before": the displacement is complete before the final descent
+    (the gripper comes straight down onto the moved cube). "during": it ramps in
+    over the last ramp_in seconds before the grasp, i.e. during the descent (the
+    naive schedule; kept as an ablation)."""
     actions = np.asarray(actions, float)
     T = len(actions)
     t_g, t_r = segment(actions)
@@ -78,7 +83,7 @@ def generate(env, ik: SO101IK, actions, src_xy, src_yaw, new_xy, new_yaw):
         pts.append(ik.grasp_point(q[:5]))
         axes.append(a)
     pts, axes = np.array(pts), np.array(axes)
-    t_d = descent_start(pts[:, 2], t_g)
+    t_d = descent_start(pts[:, 2], t_g) if shift_timing == "before" else t_g
     w = displacement_weight(T, t_g, t_r, t_d)
     d_xy = np.r_[np.asarray(new_xy) - np.asarray(src_xy), 0.0]
     # wrist: rotate the jaws by the cube's yaw change relative to the new bearing
