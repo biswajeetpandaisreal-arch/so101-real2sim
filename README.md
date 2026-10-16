@@ -198,7 +198,7 @@ position) with identical initial conditions for every policy. Full tables: [resu
 ## 10. Reproduce
 
 ```bash
-python -m venv .venv && .venv\Scripts\pip install -e ".[dev]"
+python -m venv .venv && .venv\Scripts\pip install -e ".[robot,dev]"   # the full pipeline needs LeRobot
 python scripts/prepare_data.py episodes                    # positions + task frames; replay check
 python scripts/sysid.py fit --log data/sysid/excite_<time>.npz --validate data/so101_real
 python scripts/prepare_data.py generate --total 0 --include-replays --out data/datasets/real
