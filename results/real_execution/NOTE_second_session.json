@@ -1,0 +1,1 @@
+{"note": "Second (filmed) real-arm session: the terminal was closed before the script saved its results file, so only the two trials verifiable from the unedited phone videos are recorded (results_video_verified.json). The other trials of that session are excluded, not estimated. execute_real.py now saves after every trial."}

@@ -1,0 +1,69 @@
+{
+ "start_pose": [
+  0.2637374773621559,
+  -106.07181549072266,
+  93.88149642944336,
+  -101.37128829956055,
+  -85.67023086547852,
+  1.2481633424758911
+ ],
+ "selection": [
+  {
+   "checkpoint": "002000",
+   "val_success": 3,
+   "val_n": 24
+  },
+  {
+   "checkpoint": "004000",
+   "val_success": 6,
+   "val_n": 24
+  },
+  {
+   "checkpoint": "006000",
+   "val_success": 9,
+   "val_n": 24
+  },
+  {
+   "checkpoint": "008000",
+   "val_success": 8,
+   "val_n": 24
+  }
+ ],
+ "selected": "006000",
+ "policy": "outputs\\train\\gen200_s1\\checkpoints\\006000\\pretrained_model",
+ "results": {
+  "extrap": {
+   "k": 16,
+   "n": 60,
+   "rate": 26.7,
+   "wilson95": [
+    17.1,
+    39.0
+   ]
+  },
+  "interp": {
+   "k": 13,
+   "n": 38,
+   "rate": 34.2,
+   "wilson95": [
+    21.2,
+    50.1
+   ]
+  },
+  "seen": {
+   "k": 3,
+   "n": 8,
+   "rate": 37.5,
+   "wilson95": [
+    13.7,
+    69.4
+   ]
+  }
+ },
+ "outcomes": {
+  "success": 29,
+  "no_contact": 0,
+  "pushed": 22,
+  "not_delivered": 47
+ }
+}

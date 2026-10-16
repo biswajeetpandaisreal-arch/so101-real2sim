@@ -118,6 +118,7 @@ def main():
             print(f"  {o}")
             results.append({k: p[k] for k in ("spot", "role", "trial", "source")} | {"outcome": o})
             logs[f"{p['spot']}_{p['trial']}"] = np.array(log)
+            (out / f"results_{stamp}.json").write_text(json.dumps(results, indent=1))   # saved after every trial
     except KeyboardInterrupt:
         print("interrupted: returning to rest")
         glide(read(), rest, 3.0, [])

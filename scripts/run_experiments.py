@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PY = sys.executable
 PLAN = [(c, s) for s in (0, 1, 2) for c in ("real", "gen200", "naive200")] + \
-       [("gen100", 0), ("gen25", 0), ("nofilter200", 0)]
+       [("gen100", 0), ("gen25", 0), ("nofilter200", 0)] +        [("reallong", 0), ("gen200long", 0)]   # post-hoc diagnostic: 2x training steps
 # Fewer generated demos = the first episodes of gen200 (same seed, so identical to
 # generating them separately): its replays plus the first N generated episodes.
 SUBSETS = {"gen25": ("gen200", 25), "gen100": ("gen200", 100)}
@@ -28,6 +28,7 @@ SUBSETS = {"gen25": ("gen200", 25), "gen100": ("gen200", 100)}
 
 def dataset_of(cond):
     """(dataset folder, episode indices or None for all)."""
+    cond = cond.removesuffix("long")
     if cond not in SUBSETS:
         return cond, None
     base, n = SUBSETS[cond]
@@ -59,7 +60,8 @@ def job(cond, seed, a):
     log = ROOT / "outputs" / "logs" / f"run_{cond}_s{seed}.log"
     ck = ROOT / "outputs" / "train" / f"{cond}_s{seed}" / "checkpoints"
     steps = [] if ck.exists() and any(p.name.isdigit() for p in ck.iterdir()) else \
-        [train_cmd(cond, seed, a.steps, a.batch, a.save_every)]
+        [train_cmd(cond, seed, a.steps * (2 if cond.endswith("long") else 1), a.batch,
+                   a.save_every * (2 if cond.endswith("long") else 1))]
     return steps + [eval_cmd(cond, seed)], log
 
 

@@ -25,11 +25,12 @@ ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "results"
 FIG = RES / "figures"
 MAIN = ("real", "gen200", "naive200")
-ABL = ("gen25", "gen100", "gen200", "nofilter200")
+ABL = ("gen25", "gen100", "gen200", "nofilter200", "reallong", "gen200long")
 SETS = ("seen", "interp", "extrap")
 NAMES = {"real": "real only", "gen200": "real + 200 generated", "naive200": "real + 200 naive-shift",
          "gen100": "real + 100 generated", "gen25": "real + 25 generated",
-         "nofilter200": "real + 200 generated, no physics filter"}
+         "nofilter200": "real + 200 generated, no physics filter",
+         "reallong": "real only, 2x steps (post-hoc)", "gen200long": "real + 200 generated, 2x steps (post-hoc)"}
 
 
 def load_trials():
