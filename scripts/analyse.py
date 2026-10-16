@@ -103,6 +103,14 @@ def generation_section(out):
                         ("method, as rendered for training", "gen200")):
         log = [r for r in json.loads((RESULTS / "generation" / f"{name}.json").read_text()) if r["kind"] != "replay"]
         out.append(f"| {label} | {fmt_rate(sum(r['success'] for r in log), len(log))} |")
+    layout = read_layout()
+    log = [r for r in json.loads((RESULTS / "generation" / "gen200.json").read_text()) if r["kind"] != "replay"]
+    moved = np.array([np.linalg.norm(to_table_cm((r["x"], r["y"])) - to_table_cm(layout[r["mark"]]["xy"])) for r in log])
+    ok = np.array([r["success"] for r in log])
+    out += ["\nTraining-set generation by how far the demonstration was moved:\n", "| moved | success |", "|---|---|"]
+    for lo, hi in ((0, 6), (6, 12), (12, 30)):
+        sel = (moved >= lo) & (moved < hi)
+        out.append(f"| {lo}-{hi} cm | {fmt_rate(int(ok[sel].sum()), int(sel.sum()))} |")
     out.append("")
 
 

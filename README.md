@@ -90,6 +90,16 @@ A simplified [MimicGen](https://mimicgen.github.io) for a 5-DoF arm and *real* r
 Finishing the shift *before* the descent matters: 71% of generated trajectories succeed, against 38% when the shift is
 ramped during the descent.
 
+![every generated trajectory](results/media/generated_grid.gif)
+
+*Every trajectory generated for the training set: 277 attempts, 200 kept (green: the tealight ends in the box), 77
+filtered out by physics (red: mostly missed grasps, the tealight never leaves the table).*
+
+What decides whether a generated trajectory works is **how far the demonstration is moved**: 90% succeed when it
+is moved less than 6 cm, 79% at 6–12 cm and 58% beyond 12 cm (77% inside the demonstrated area, 67% beyond it). The
+real arm shows the same pattern (mark 1, close to the demonstrations: 4/4; mark 6, far: 0/4). The generator cycles
+through the 12 sources evenly; always adapting the *nearest* demonstration would shorten the moves.
+
 ![generated](results/media/generated.gif)
 
 *Trajectories generated from one real demonstration for mark 1, mark 6 and two random positions.*
@@ -165,7 +175,9 @@ position) with identical initial conditions for every policy. Full tables: [resu
    *Next:* a fixed share of real demonstrations in every batch.
 4. **ACT executes 100-step chunks open loop** (3.3 s), so grasp errors are not corrected before the drop into an
    8 cm box. *Next:* temporal ensembling or shorter chunks.
-5. **Beyond the demonstrations is near the reach limit** (mark 6 is 37 cm out, the gripper must tilt about 33°). The
+5. **Sources are not chosen by distance.** Generation success falls from 90% to 58% as the move grows.
+   *Next:* adapt the nearest demonstration to each new position.
+6. **Beyond the demonstrations is near the reach limit** (mark 6 is 37 cm out, the gripper must tilt about 33°). The
    real arm also failed there, so part of the extrapolation gap is reachability.
 
 ## 8. What went wrong along the way

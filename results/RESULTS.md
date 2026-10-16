@@ -40,6 +40,14 @@ Object position recovered from each real grasp, spread across demonstrations per
 | naive shift: source commands unchanged (negative control) | 6/200 = 3% [1, 6] |
 | method, as rendered for training | 200/277 = 72% [67, 77] |
 
+Training-set generation by how far the demonstration was moved:
+
+| moved | success |
+|---|---|
+| 0-6 cm | 44/49 = 90% [78, 96] |
+| 6-12 cm | 89/113 = 79% [70, 85] |
+| 12-30 cm | 67/115 = 58% [49, 67] |
+
 ## Policies (ACT, closed loop in simulation)
 
 Success with 95% Wilson intervals, pooled over training seeds; checkpoints chosen on validation positions only.
