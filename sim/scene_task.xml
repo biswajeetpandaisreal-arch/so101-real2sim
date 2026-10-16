@@ -1,6 +1,6 @@
 <mujoco model="so101_pick_place">
-  <!-- SO-101 (MuJoCo Menagerie, robotstudio_so101) on a table-top: pick the cube,
-       drop it in the basket. The cube pose is set at runtime by real2sim/sim_env.py. -->
+  <!-- SO-101 (MuJoCo Menagerie, robotstudio_so101) on a table-top: pick the object and
+       drop it in the box. Object pose and box position are set at runtime by real2sim/sim_env.py. -->
   <include file="so101.xml" />
 
   <visual>
@@ -27,20 +27,20 @@
     <camera name="overview" pos="0.720 -0.400 0.400" xyaxes="0.567 0.824 -0.000 -0.453 0.312 0.835" fovy="45" />
 
     <!-- Object: the real one is an LED tealight, a cylinder 38 mm across and 23 mm tall
-         (the plastic flame on top is not modelled). Body/geom keep the name "cube". -->
-    <body name="cube" pos="0.25 0.0 0.0115">
+         (the plastic flame on top is not modelled). -->
+    <body name="object" pos="0.25 0.0 0.0115">
       <freejoint />
-      <geom type="cylinder" name="cube" size="0.019 0.0115" condim="4"
+      <geom type="cylinder" name="object" size="0.019 0.0115" condim="4"
         friction="1.2 0.03 0.003" rgba="0.85 0.7 0.2 1" contype="2" conaffinity="1"
         solref="0.01 1" mass="0.015" />
     </body>
 
-    <!-- Basket: the real open box, inside 15.8 cm (forward) x 8.4 cm, 4 cm walls.
+    <!-- Box: the real open box, inside 15.8 cm (forward) x 8.4 cm, 4 cm walls.
          Its position is set at runtime from config/layout.csv. -->
-    <body name="basket" pos="0.279 -0.223 0">
-      <geom name="basket_bottom" type="box" size="0.079 0.042 0.003" pos="0 0 0.003"
+    <body name="box" pos="0.279 -0.223 0">
+      <geom name="box_floor" type="box" size="0.079 0.042 0.003" pos="0 0 0.003"
         rgba="0.12 0.12 0.14 1" condim="3" friction="1 0.03 0.003" />
-      <geom name="basket_wall" type="box" size="0.003 0.042 0.02" pos="0.082 0 0.023" rgba="0.12 0.12 0.14 1" />
+      <geom name="box_wall" type="box" size="0.003 0.042 0.02" pos="0.082 0 0.023" rgba="0.12 0.12 0.14 1" />
       <geom type="box" size="0.003 0.042 0.02" pos="-0.082 0 0.023" rgba="0.12 0.12 0.14 1" />
       <geom type="box" size="0.085 0.003 0.02" pos="0 0.045 0.023" rgba="0.12 0.12 0.14 1" />
       <geom type="box" size="0.085 0.003 0.02" pos="0 -0.045 0.023" rgba="0.12 0.12 0.14 1" />

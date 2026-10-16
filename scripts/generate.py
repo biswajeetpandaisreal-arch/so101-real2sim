@@ -1,126 +1,110 @@
-"""Turn recorded demonstrations into a larger, position-diverse simulated dataset.
+"""Build a simulated training dataset from the recorded demonstrations.
 
-For each source episode, samples new cube poses across the workspace, makes a
-trajectory for each, runs it in physics and (by default) keeps it only if the
-cube lands in the basket. Kept episodes are rendered into a LeRobot dataset
-(sim cameras + joint state/action) for policy training. A JSON log records the
-source episode, cube pose, outcome and dataset episode index of every attempt.
+Sources are the listed demonstrations the twin reproduces. For each new object
+pose (sampled over the table workspace, cycling through the sources) a
+trajectory is produced and run in physics; kept episodes are rendered into a
+LeRobot dataset (top and wrist cameras, joint state and command).
+generation_log.json (also copied to results/generation/<out name>.json)
+records every attempt.
 
-Modes (for the controlled comparison and ablations):
-  generate  object-centric adaptation (real2sim.generate)          [method]
-  naive     the source actions unchanged, cube moved               [negative control]
-Options:
-  --keep-failures        no physics filter                         [ablation]
-  --shift-timing during  displacement ramped during the descent    [ablation]
+  --mode generate        object-centric adaptation (real2sim.generate)   method
+  --mode naive           source commands unchanged, object moved        negative control
+  --keep-failures        no physics filter                              ablation
+  --shift-timing during  displacement ramped during the descent         ablation
+  --include-replays      also keep the sources' own replays             (the "real" data)
+  --no-render            physics only, for generation statistics
 
-    python scripts/generate.py --data data/so101_real --total 200 --include-replays \\
-        --out data/gen_200
+    python scripts/generate.py --total 200 --include-replays --out data/datasets/gen200
+    python scripts/generate.py --total 200 --keep-failures --no-render --out data/datasets/timing_before
 """
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from real2sim.dataset_io import SimDatasetWriter, load_episodes  # noqa: E402
-from real2sim.generate import generate  # noqa: E402
-from real2sim.kinematics import SO101IK  # noqa: E402
-from real2sim.layout import read_layout, workspace  # noqa: E402
-from real2sim.sim_env import SO101Env  # noqa: E402
-from scripts.replay import load_demos, read_spots, replay  # noqa: E402
+from real2sim.dataset_io import SimDatasetWriter
+from real2sim.demos import load_demos, read_episode_list, replay
+from real2sim.generate import generate
+from real2sim.kinematics import SO101IK
+from real2sim.layout import read_layout, workspace
+from real2sim.sim_env import ROOT, SO101Env
 
-# Cube placement region for generated episodes: the table layout's workspace
-X0, X1, Y0, Y1 = workspace(read_layout())
 YAW_RANGE = (-0.4, 0.4)
 
 
-def sample_pose(rng):
-    return (np.array([rng.uniform(X0, X1), rng.uniform(Y0, Y1)]), float(rng.uniform(*YAW_RANGE)))
-
-
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data", required=True)
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--data", default="data/so101_real")
     ap.add_argument("--repo-id", default="local/so101_real")
-    ap.add_argument("--spots", default=None)
-    ap.add_argument("--total", type=int, default=200, help="generated episodes to keep (0: replays only)")
+    ap.add_argument("--episodes", default=str(ROOT / "results" / "episodes.csv"))
+    ap.add_argument("--total", type=int, default=200, help="episodes to keep besides replays")
     ap.add_argument("--max-attempts", type=int, default=None)
     ap.add_argument("--mode", choices=("generate", "naive"), default="generate")
     ap.add_argument("--shift-timing", choices=("before", "during"), default="before")
     ap.add_argument("--keep-failures", action="store_true")
-    ap.add_argument("--include-replays", action="store_true",
-                    help="also keep the successful replays of the source episodes")
-    ap.add_argument("--sources", default=None, help="comma-separated spot names to use as sources")
-    ap.add_argument("--no-render", action="store_true", help="physics only (generation statistics)")
+    ap.add_argument("--include-replays", action="store_true")
+    ap.add_argument("--no-render", action="store_true")
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
-    data, out = Path(a.data), Path(a.out)
-    spots = read_spots(Path(a.spots) if a.spots else data / "episodes.csv")
-    eps = load_demos(data, a.repo_id, spots)
-    if a.sources:
-        keep = set(a.sources.split(","))
-        eps = [e for e in eps if spots[e["episode"]]["spot"] in keep]
+    out = Path(a.out)
     env, rng = SO101Env(), np.random.default_rng(a.seed)
     ik = SO101IK(env)
-    valid = [e for e in eps if replay(env, e, spots[e["episode"]])[0]]   # sources the twin reproduces
-    print(f"{len(valid)}/{len(eps)} source demonstrations succeed when replayed; using those", flush=True)
-    eps = valid
-    w = None if a.no_render else SimDatasetWriter(out, "local/so101_sim")
-    log, n_ep = [], 0
+    x0, x1, y0, y1 = workspace(read_layout())
+    demos = load_demos(Path(a.data), a.repo_id, read_episode_list(Path(a.episodes)))
+    sources = [d for d in demos if replay(env, d)]
+    print(f"{len(sources)}/{len(demos)} demonstrations succeed when replayed; using them as sources", flush=True)
+    writer = None if a.no_render else SimDatasetWriter(out, "local/so101_sim")
+    log, n_saved = [], 0
 
-    def finish(keep, row):
-        nonlocal n_ep
-        row["dataset_episode"] = n_ep if keep and w is not None else None
-        if w is not None:
-            w.end_episode(keep=keep)
-        n_ep += bool(keep) and w is not None
+    def record(keep, row):
+        nonlocal n_saved
+        row["dataset_episode"] = n_saved if keep and writer else None
+        if writer:
+            writer.end_episode(keep)
+            n_saved += keep
         log.append(row)
 
     if a.include_replays:
-        for ep in eps:
-            sp = spots[ep["episode"]]
-            ok, _ = replay(env, ep, sp, writer=w)
-            finish(ok, {"source": ep["episode"], "spot": sp["spot"], "kind": "replay",
-                        "x": sp["xy"][0], "y": sp["xy"][1], "yaw": sp["yaw"], "success": bool(ok)})
+        for d in sources:
+            ok = replay(env, d, writer)
+            record(ok, {"source": d["episode"], "mark": d["info"]["mark"], "kind": "replay",
+                        "x": float(d["info"]["xy"][0]), "y": float(d["info"]["xy"][1]), "yaw": d["info"]["yaw"],
+                        "success": ok})
     max_attempts = a.max_attempts or a.total * (1 if a.keep_failures or a.mode == "naive" else 3)
     kept = attempts = 0
     while kept < a.total and attempts < max_attempts:
-        ep = eps[attempts % len(eps)]                      # cycle through the sources evenly
-        sp = spots[ep["episode"]]
+        d = sources[attempts % len(sources)]
         attempts += 1
-        xy, yaw = sample_pose(rng)
+        xy, yaw = np.array([rng.uniform(x0, x1), rng.uniform(y0, y1)]), float(rng.uniform(*YAW_RANGE))
         if a.mode == "naive":
-            acts = ep["action"]
+            commands = d["action"]
         else:
-            try:
-                acts = generate(env, ik, ep["action"], sp["xy"], sp["yaw"], xy, yaw, a.shift_timing)
-            except ValueError as err:                      # e.g. gripper never closes
-                print(f"episode {ep['episode']}: {err}")
-                continue
-        env.reset(xy, yaw, q0_lerobot=acts[0])
-        for act in acts:
-            if w is not None:
-                w.add(env, act)
-            env.step(act)
+            commands = generate(env, ik, d["action"], d["info"]["xy"], d["info"]["yaw"], xy, yaw, a.shift_timing)
+        env.reset(xy, yaw, q0_lerobot=commands[0])
+        for c in commands:
+            if writer:
+                writer.add(env, c)
+            env.step(c)
         ok = env.success()
         keep = ok or a.keep_failures or a.mode == "naive"
         kept += keep
-        finish(keep, {"source": ep["episode"], "spot": sp["spot"], "kind": a.mode,
-                      "shift_timing": a.shift_timing, "x": float(xy[0]), "y": float(xy[1]),
-                      "yaw": yaw, "success": bool(ok)})
+        record(keep, {"source": d["episode"], "mark": d["info"]["mark"], "kind": a.mode,
+                      "shift_timing": a.shift_timing, "x": float(xy[0]), "y": float(xy[1]), "yaw": yaw,
+                      "success": ok})
         if attempts % 20 == 0:
             print(f"{attempts} attempts, {kept} kept", flush=True)
-    if w is not None:
-        w.close()
+    if writer:
+        writer.close()
     out.mkdir(parents=True, exist_ok=True)
-    (out / "generation_log.json").write_text(json.dumps(log, indent=1))
-    gen = [r for r in log if r["kind"] != "replay"]
-    print(f"\n{n_ep} episodes in dataset; {a.mode} physics success "
-          f"{sum(r['success'] for r in gen)}/{len(gen)}")
+    for path in (out / "generation_log.json", ROOT / "results" / "generation" / f"{out.name}.json"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(log, indent=1))
+    attempts_log = [r for r in log if r["kind"] != "replay"]
+    print(f"{n_saved} episodes saved; {a.mode} physics success "
+          f"{sum(r['success'] for r in attempts_log)}/{len(attempts_log)}")
 
 
 if __name__ == "__main__":

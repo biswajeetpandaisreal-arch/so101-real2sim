@@ -1,8 +1,16 @@
-"""MuJoCo pick-and-place environment for the SO-101.
+"""MuJoCo twin of the SO-101 pick-and-place setup.
 
-Joint commands use LeRobot's units, so real teleoperation data drives the
-simulated arm directly: degrees for the five arm joints and 0-100 for the
-gripper (the mapping is the one validated in the so101_digital_twin project).
+Commands use LeRobot units (degrees for the five arm joints, 0-100 for the
+gripper), so recorded teleoperation drives the simulated arm directly. Three
+measured quantities make the twin match the real arm, each applied when its
+file exists:
+
+  config/calibration/so101_follower.json   joint limits (the real arm rests at
+                                           wrist_flex -102 deg, beyond the
+                                           Menagerie limit of +/-95 deg)
+  sim/actuators_fitted.json                identified servo dynamics
+                                           (scripts/sysid_fit.py)
+  config/layout.csv                        where the box is on the table
 """
 
 from __future__ import annotations
@@ -13,71 +21,61 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-SCENE = Path(__file__).resolve().parent.parent / "sim" / "scene_task.xml"
-# Actuator / joint parameters identified from the real arm (scripts/sysid_fit.py).
-# Applied whenever the file exists; SO101Env(actuators=None) gives the
-# Menagerie defaults for comparison.
-ACTUATORS = Path(__file__).resolve().parent.parent / "sim" / "actuators_fitted.json"
-# The real follower's calibration. Its recorded range of motion is wider than the
-# Menagerie model's joint limits (e.g. wrist_flex +/-101.5 deg vs +/-95 deg; the arm
-# rests at -102 deg), so the arm joints' limits are set from it.
-CALIBRATION = Path(__file__).resolve().parent.parent / "config" / "calibration" / "so101_follower.json"
-LAYOUT = Path(__file__).resolve().parent.parent / "config" / "layout.csv"
+from .layout import read_layout
+
+ROOT = Path(__file__).resolve().parent.parent
+SCENE = ROOT / "sim" / "scene_task.xml"
+ACTUATORS = ROOT / "sim" / "actuators_fitted.json"
+CALIBRATION = ROOT / "config" / "calibration" / "so101_follower.json"
+LAYOUT = ROOT / "config" / "layout.csv"
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
-FPS = 30                                    # LeRobot recording rate
+FPS = 30                                            # LeRobot recording rate
+ACTUATOR_PARAMS = ("kp", "kv", "damping", "frictionloss", "armature")
+
+
+def _load(path_or_value):
+    if isinstance(path_or_value, Path):
+        return json.loads(path_or_value.read_text()) if path_or_value.exists() else None
+    return path_or_value
 
 
 class SO101Env:
-    def __init__(self, scene: Path = SCENE, render_size: tuple[int, int] = (240, 320),
-                 actuators: Path | dict | None = ACTUATORS, calibration: Path | None = CALIBRATION,
-                 layout: Path | None = LAYOUT):
-        self.model = mujoco.MjModel.from_xml_path(str(scene))
-        self.data = mujoco.MjData(self.model)
-        self.jnt = [self.model.joint(n).id for n in JOINTS]
-        self.qadr = np.array([self.model.jnt_qposadr[j] for j in self.jnt])
-        self.dadr = np.array([self.model.jnt_dofadr[j] for j in self.jnt])
-        self.act = np.array([self.model.actuator(n).id for n in JOINTS])
-        if calibration is not None and Path(calibration).exists():
-            self._measured_limits(json.loads(Path(calibration).read_text()))
-        self.range = np.array([self.model.jnt_range[j] for j in self.jnt])
-        cube_j = self.model.body("cube").jntadr[0]
-        self.cube_qadr = self.model.jnt_qposadr[cube_j]
-        self.cube_dadr = self.model.jnt_dofadr[cube_j]
-        self.cube_body = self.model.body("cube").id
-        if layout is not None and Path(layout).exists():          # basket where it is on the real table
-            from .layout import read_layout
-            b = read_layout(Path(layout)).get("basket")
-            if b is not None:
-                self.model.body("basket").pos[:2] = b["xy"]
-        self.basket_pos = self.model.body("basket").pos.copy()
-        floor = self.model.geom("basket_bottom").size
-        self.basket_half = floor[:2] - 0.005                      # usable floor half-sizes (m)
-        self.basket_top = 2 * self.model.geom("basket_wall").size[2] + 0.006
-        g = self.model.geom("cube")
-        self.cube_half_h = g.size[1] if g.type == mujoco.mjtGeom.mjGEOM_CYLINDER else g.size[2]
-        self.tcp = self.model.site("gripperframe").id
-        self.substeps = max(1, round(1.0 / FPS / self.model.opt.timestep))
+    def __init__(self, render_size: tuple[int, int] = (240, 320), actuators: Path | dict | None = ACTUATORS,
+                 calibration: Path | dict | None = CALIBRATION, layout: Path | None = LAYOUT):
+        m = self.model = mujoco.MjModel.from_xml_path(str(SCENE))
+        self.data = mujoco.MjData(m)
+        self.jnt = [m.joint(n).id for n in JOINTS]
+        self.qadr = np.array([m.jnt_qposadr[j] for j in self.jnt])
+        self.dadr = np.array([m.jnt_dofadr[j] for j in self.jnt])
+        self.act = np.array([m.actuator(n).id for n in JOINTS])
+        if (calib := _load(calibration)) is not None:
+            self._set_limits(calib)
+        self.range = np.array([m.jnt_range[j] for j in self.jnt])
+        if layout is not None and layout.exists() and "box" in (marks := read_layout(layout)):
+            m.body("box").pos[:2] = marks["box"]["xy"]
+        self.box_pos = m.body("box").pos.copy()
+        self.box_half = m.geom("box_floor").size[:2] - 0.005          # usable floor half-sizes (m)
+        self.box_top = 2 * m.geom("box_wall").size[2] + 0.006
+        self.obj_body = m.body("object").id
+        self.obj_qadr = m.jnt_qposadr[m.body("object").jntadr[0]]
+        self.obj_half_height = m.geom("object").size[1]               # cylinder: (radius, half-height)
+        self.substeps = max(1, round(1.0 / FPS / m.opt.timestep))
         self.render_size = render_size
         self._renderer = None
-        if isinstance(actuators, Path):
-            actuators = json.loads(actuators.read_text()) if actuators.exists() else None
-        self.actuators = actuators
-        if actuators:
-            self.set_actuators(actuators)
+        if (params := _load(actuators)) is not None:
+            self.set_actuators(params)
 
-    def _measured_limits(self, calib: dict):
-        """Arm joint limits from the real arm's calibrated range (LeRobot maps the
-        range midpoint to 0 deg, so it is symmetric). The gripper keeps its own
-        0-100 mapping onto the model's jaw range."""
+    def _set_limits(self, calib: dict):
+        """Arm joint limits from the real arm's calibrated range. LeRobot maps the
+        range midpoint to 0 deg, so the range is symmetric; it is never narrowed
+        below the model's. The gripper keeps its 0-100 mapping onto the jaw range."""
         m = self.model
         for name, j, a in zip(JOINTS[:5], self.jnt[:5], self.act[:5]):
             c = calib[name]
-            half = np.deg2rad((c["range_max"] - c["range_min"]) * 360 / 4095 / 2)
-            half = max(half, m.jnt_range[j, 1])                 # never narrower than the model
-            m.jnt_range[j] = (-half, half)
-            m.actuator_ctrlrange[a] = (-half, half)
+            half = max(np.deg2rad((c["range_max"] - c["range_min"]) * 360 / 4095 / 2), m.jnt_range[j, 1])
+            m.jnt_range[j] = m.actuator_ctrlrange[a] = (-half, half)
 
-    # ── actuator model ──────────────────────────────────────────────────────
+    # ── actuators ───────────────────────────────────────────────────────────
     def get_actuators(self) -> dict:
         m = self.model
         return {j: {"kp": float(m.actuator_gainprm[a, 0]), "kv": float(-m.actuator_biasprm[a, 2]),
@@ -86,13 +84,12 @@ class SO101Env:
                 for j, a, d in zip(JOINTS, self.act, self.dadr)}
 
     def set_actuators(self, params: dict):
-        """Per-joint {kp, kv, damping, frictionloss, armature} (any subset)."""
+        """Per-joint {kp, kv, damping, frictionloss, armature}; any subset."""
         m = self.model
         for j, a, d in zip(JOINTS, self.act, self.dadr):
             p = params.get(j, {})
             if "kp" in p:
-                m.actuator_gainprm[a, 0] = p["kp"]
-                m.actuator_biasprm[a, 1] = -p["kp"]
+                m.actuator_gainprm[a, 0], m.actuator_biasprm[a, 1] = p["kp"], -p["kp"]
             if "kv" in p:
                 m.actuator_biasprm[a, 2] = -p["kv"]
             for key, arr in (("damping", m.dof_damping), ("frictionloss", m.dof_frictionloss),
@@ -100,37 +97,35 @@ class SO101Env:
                 if key in p:
                     arr[d] = p[key]
 
-    # ── unit conversion (LeRobot <-> MuJoCo) ────────────────────────────────
-    def lerobot_to_rad(self, a: np.ndarray) -> np.ndarray:
+    # ── units ───────────────────────────────────────────────────────────────
+    def lerobot_to_rad(self, a) -> np.ndarray:
         a = np.asarray(a, float)
         q = np.deg2rad(a)
         lo, hi = self.range[5]
         q[..., 5] = lo + a[..., 5] / 100.0 * (hi - lo)
         return np.clip(q, self.range[:, 0], self.range[:, 1])
 
-    def rad_to_lerobot(self, q: np.ndarray) -> np.ndarray:
+    def rad_to_lerobot(self, q) -> np.ndarray:
         q = np.asarray(q, float)
         a = np.rad2deg(q)
         lo, hi = self.range[5]
         a[..., 5] = (q[..., 5] - lo) / (hi - lo) * 100.0
         return a
 
-    # ── episode control ─────────────────────────────────────────────────────
-    def reset(self, cube_xy, cube_yaw: float = 0.0, q0_lerobot=None):
+    # ── episodes ────────────────────────────────────────────────────────────
+    def reset(self, obj_xy, obj_yaw: float = 0.0, q0_lerobot=None):
         mujoco.mj_resetData(self.model, self.data)
-        q = self.cube_qadr
-        self.data.qpos[q:q + 3] = [cube_xy[0], cube_xy[1], self.cube_half_h + 0.001]
-        self.data.qpos[q + 3:q + 7] = [np.cos(cube_yaw / 2), 0, 0, np.sin(cube_yaw / 2)]
+        q = self.obj_qadr
+        self.data.qpos[q:q + 3] = [obj_xy[0], obj_xy[1], self.obj_half_height + 0.001]
+        self.data.qpos[q + 3:q + 7] = [np.cos(obj_yaw / 2), 0, 0, np.sin(obj_yaw / 2)]
         if q0_lerobot is not None:
-            q0 = self.lerobot_to_rad(q0_lerobot)
-            self.data.qpos[self.qadr] = q0
-            self.data.ctrl[self.act] = q0
+            self.data.qpos[self.qadr] = self.data.ctrl[self.act] = self.lerobot_to_rad(q0_lerobot)
         mujoco.mj_forward(self.model, self.data)
-        for _ in range(20):                 # let the cube settle
+        for _ in range(20):                                           # let the object settle
             mujoco.mj_step(self.model, self.data)
 
     def step(self, action_lerobot):
-        """Apply one 30 Hz action (LeRobot units) as position targets."""
+        """Apply one 30 Hz command (LeRobot units) as joint position targets."""
         self.data.ctrl[self.act] = self.lerobot_to_rad(action_lerobot)
         for _ in range(self.substeps):
             mujoco.mj_step(self.model, self.data)
@@ -138,30 +133,27 @@ class SO101Env:
     def state_lerobot(self) -> np.ndarray:
         return self.rad_to_lerobot(self.data.qpos[self.qadr])
 
-    def cube_pos(self) -> np.ndarray:
-        return self.data.xpos[self.cube_body].copy()
-
-    def tcp_pos(self) -> np.ndarray:
-        return self.data.site_xpos[self.tcp].copy()
+    def object_pos(self) -> np.ndarray:
+        return self.data.xpos[self.obj_body].copy()
 
     def success(self) -> bool:
-        """Object resting inside the basket footprint, below the wall tops."""
-        c = self.cube_pos()
-        d = np.abs(c[:2] - self.basket_pos[:2])
-        return bool(d[0] < self.basket_half[0] and d[1] < self.basket_half[1] and c[2] < self.basket_top)
+        """Object resting on the box floor, below the wall tops."""
+        p = self.object_pos()
+        d = np.abs(p[:2] - self.box_pos[:2])
+        return bool((d < self.box_half).all() and p[2] < self.box_top)
 
     # ── rendering ───────────────────────────────────────────────────────────
-    # Policy observations are rendered with the arm's simplified collision
-    # geometry and no shadows: ~11 ms per camera pair instead of ~110 ms with the
-    # 400k-triangle CAD meshes on this laptop's integrated GPU. Training and
-    # evaluation use the same rendering; pretty=True gives the CAD look for figures.
-    FAST_GROUPS = (1, 1, 0, 1, 1, 0)
+    # Policy observations use the arm's collision geometry and no shadows: ~10 ms
+    # per camera pair instead of ~110 ms with the 400k-triangle CAD meshes on this
+    # laptop's integrated GPU. Training and evaluation see the same rendering;
+    # pretty=True gives the CAD look for figures.
+    FAST_GEOM_GROUPS = (1, 1, 0, 1, 1, 0)
 
     def render(self, camera: str, pretty: bool = False) -> np.ndarray:
         if self._renderer is None:
             self._renderer = mujoco.Renderer(self.model, *self.render_size)
             self._fast = mujoco.MjvOption()
-            self._fast.geomgroup[:] = self.FAST_GROUPS
+            self._fast.geomgroup[:] = self.FAST_GEOM_GROUPS
         shadows = self.model.light_castshadow.copy()
         if not pretty:
             self.model.light_castshadow[:] = 0

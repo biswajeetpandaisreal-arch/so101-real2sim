@@ -5,4 +5,4 @@ name,role,fwd_cm,left_cm,source
 5,train,34.1,10.3,arm (median of grasps)
 1,interp,29.7,2.4,arm (test-episode grasp)
 6,extrap,37.6,0.5,photo fitted to arm
-basket,basket,31.3,-22.9,photo fitted to arm
+box,box,31.3,-22.9,photo fitted to arm

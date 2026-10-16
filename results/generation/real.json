@@ -1,0 +1,122 @@
+[
+ {
+  "source": 0,
+  "kind": "replay",
+  "x": 0.2472,
+  "y": 0.0792,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 0,
+  "mark": "2"
+ },
+ {
+  "source": 3,
+  "kind": "replay",
+  "x": 0.2675,
+  "y": 0.0868,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 1,
+  "mark": "2"
+ },
+ {
+  "source": 4,
+  "kind": "replay",
+  "x": 0.258,
+  "y": 0.087,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 2,
+  "mark": "2"
+ },
+ {
+  "source": 5,
+  "kind": "replay",
+  "x": 0.264,
+  "y": -0.0757,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 3,
+  "mark": "3"
+ },
+ {
+  "source": 7,
+  "kind": "replay",
+  "x": 0.2856,
+  "y": -0.0695,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 4,
+  "mark": "3"
+ },
+ {
+  "source": 10,
+  "kind": "replay",
+  "x": 0.2766,
+  "y": -0.0678,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 5,
+  "mark": "3"
+ },
+ {
+  "source": 12,
+  "kind": "replay",
+  "x": 0.3721,
+  "y": -0.0636,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 6,
+  "mark": "4"
+ },
+ {
+  "source": 13,
+  "kind": "replay",
+  "x": 0.3743,
+  "y": -0.0691,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 7,
+  "mark": "4"
+ },
+ {
+  "source": 14,
+  "kind": "replay",
+  "x": 0.3772,
+  "y": -0.0733,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 8,
+  "mark": "4"
+ },
+ {
+  "source": 16,
+  "kind": "replay",
+  "x": 0.3815,
+  "y": 0.1006,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 9,
+  "mark": "5"
+ },
+ {
+  "source": 17,
+  "kind": "replay",
+  "x": 0.3868,
+  "y": 0.0973,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 10,
+  "mark": "5"
+ },
+ {
+  "source": 19,
+  "kind": "replay",
+  "x": 0.3749,
+  "y": 0.1056,
+  "yaw": 0.0,
+  "success": true,
+  "dataset_episode": 11,
+  "mark": "5"
+ }
+]

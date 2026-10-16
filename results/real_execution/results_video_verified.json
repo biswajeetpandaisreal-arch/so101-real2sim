@@ -1,6 +1,18 @@
 [
- {"spot": "1", "role": "interp", "trial": "video-1", "source": null, "outcome": "success",
-  "evidence": "results/media/raw/real_arm_generated_1.mp4 (unedited): lifted from mark 1, dropped inside the box"},
- {"spot": "6", "role": "extrap", "trial": "video-2", "source": null, "outcome": "not_delivered",
-  "evidence": "results/media/raw/real_arm_generated_2.mp4 (unedited): lifted from mark 6, carried to the box, released over the far rim and landed outside"}
+ {
+  "role": "interp",
+  "trial": "video-1",
+  "source": null,
+  "outcome": "success",
+  "evidence": "results/media/raw/real_arm_generated_1.mp4 (unedited): lifted from mark 1, dropped inside the box",
+  "mark": "1"
+ },
+ {
+  "role": "extrap",
+  "trial": "video-2",
+  "source": null,
+  "outcome": "not_delivered",
+  "evidence": "results/media/raw/real_arm_generated_2.mp4 (unedited): lifted from mark 6, carried to the box, released over the far rim and landed outside",
+  "mark": "6"
+ }
 ]

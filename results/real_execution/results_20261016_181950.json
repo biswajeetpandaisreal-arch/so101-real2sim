@@ -1,46 +1,46 @@
 [
  {
-  "spot": "1",
   "role": "interp",
   "trial": 0,
   "source": 16,
-  "outcome": "success"
+  "outcome": "success",
+  "mark": "1"
  },
  {
-  "spot": "1",
   "role": "interp",
   "trial": 1,
   "source": 17,
-  "outcome": "success"
+  "outcome": "success",
+  "mark": "1"
  },
  {
-  "spot": "1",
   "role": "interp",
   "trial": 2,
   "source": 19,
-  "outcome": "success"
+  "outcome": "success",
+  "mark": "1"
  },
  {
-  "spot": "6",
   "role": "extrap",
   "trial": 0,
   "source": 12,
-  "outcome": "not_delivered"
+  "outcome": "not_delivered",
+  "mark": "6"
  },
  {
-  "spot": "6",
   "role": "extrap",
   "trial": 1,
   "source": 12,
-  "outcome": "pushed"
+  "outcome": "pushed",
+  "mark": "6"
  },
  {
-  "spot": "6",
   "role": "extrap",
   "trial": 2,
   "source": 13,
   "outcome": "not_delivered",
   "recorded_outcome": "success",
-  "note": "operator mistyped the score (y); corrected afterwards to not_delivered (lifted, not in the box), as seen on video"
+  "note": "operator mistyped the score (y); corrected afterwards to not_delivered (lifted, not in the box), as seen on video",
+  "mark": "6"
  }
 ]

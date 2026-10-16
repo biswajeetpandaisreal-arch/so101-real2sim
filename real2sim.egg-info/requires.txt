@@ -1,0 +1,7 @@
+lerobot[dataset,feetech,training]==0.6.1
+mujoco>=3.3
+numpy
+scipy
+matplotlib
+pillow
+av

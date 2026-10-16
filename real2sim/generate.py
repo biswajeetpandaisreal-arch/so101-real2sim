@@ -1,19 +1,17 @@
 """Object-centric demonstration generation (a simplified MimicGen).
 
-Takes one recorded demonstration and a new cube pose and produces a new joint
-trajectory that performs the same task on the moved cube:
+Adapts one recorded demonstration to a new object pose:
 
-  1. split the demonstration at the grasp and the release (from the gripper
-     command);
-  2. compute the grasp-centre path and approach direction with forward
-     kinematics;
-  3. shift the path by the cube's displacement — ramped in during the approach,
-     held through the grasp, ramped out before the release (the basket does not
-     move) — and turn the wrist by the cube's change in yaw;
+  1. split it at the grasp and the release (from the gripper command);
+  2. compute the grasp-centre path and approach direction by forward kinematics;
+  3. shift the path by the object's displacement: ramped in while the gripper is
+     still high (finished before the final descent), held through the grasp,
+     ramped out before the release (the box does not move); turn the wrist by
+     the object's change in yaw;
   4. solve IK along the new path, keeping the operator's approach direction and
      gripper timing.
 
-Every generated trajectory must then succeed in physics to be kept.
+Callers keep a generated trajectory only if it succeeds in physics.
 """
 
 from __future__ import annotations
@@ -21,18 +19,20 @@ from __future__ import annotations
 import numpy as np
 
 from .kinematics import SO101IK
-from .scripted import wrap90
 from .sim_env import FPS
 
 
-def segment(actions, closed_below=None):
-    """Indices of the grasp (gripper closes after having opened for the
-    approach — real demos start and end with the gripper shut at rest) and the
-    release (gripper re-opens)."""
+def wrap90(a):
+    """Wrap an angle to [-45, 45) deg: the jaws grip a square face equally at a and a + 90 deg."""
+    return (a + np.pi / 4) % (np.pi / 2) - np.pi / 4
+
+
+def segment(actions):
+    """(grasp, release) frame indices. The grasp is the first close *after* the
+    gripper opened for the approach: real demonstrations start and end with the
+    gripper shut at rest."""
     g = actions[:, 5]
-    lo, hi = np.percentile(g, 5), np.percentile(g, 95)
-    thr = closed_below if closed_below is not None else (lo + hi) / 2
-    closed = g < thr
+    closed = g < (np.percentile(g, 5) + np.percentile(g, 95)) / 2
     opened = np.where(~closed)[0]
     if not len(opened):
         raise ValueError("gripper never opens in this demonstration")
@@ -41,8 +41,7 @@ def segment(actions, closed_below=None):
         raise ValueError("gripper never closes in this demonstration")
     t_grasp = int(opened[0] + shut[0])
     after = np.where(~closed[t_grasp:])[0]
-    t_release = t_grasp + int(after[0]) if len(after) else len(g) - 1
-    return t_grasp, t_release
+    return t_grasp, t_grasp + int(after[0]) if len(after) else len(g) - 1
 
 
 def _smoothstep(x):
@@ -51,62 +50,47 @@ def _smoothstep(x):
 
 
 def descent_start(heights, t_grasp, clearance=0.10):
-    """Last moment before the grasp when the grasp centre is still high above the
-    table (the final descent begins after it)."""
+    """Last frame before the grasp with the grasp centre still `clearance` above the table."""
     above = np.where(heights[:t_grasp] > clearance)[0]
     return int(above[-1]) if len(above) else max(0, t_grasp - int(0.8 * FPS))
 
 
 def displacement_weight(T, t_grasp, t_release, t_descent, ramp_in=1.2, ramp_out=1.0):
-    """0 -> 1 while still high above the table (finished before the final
-    descent, so the gripper comes straight down onto the moved cube), 1 while
-    holding, 1 -> 0 before the release."""
+    """Share of the object's displacement applied at each frame: 0 -> 1 ending at
+    t_descent, 1 while holding, 1 -> 0 before the release."""
     t = np.arange(T)
     a1 = max(1, t_descent)
     a0 = max(0, a1 - int(ramp_in * FPS))
     w_in = _smoothstep((t - a0) / max(1, a1 - a0))
-    r0 = t_grasp + int(0.25 * FPS)                           # lift clear first
-    r1 = max(r0 + 1, t_release - int(0.15 * FPS))
-    r1 = min(r1, r0 + int(ramp_out * FPS * 2))
+    r0 = t_grasp + int(0.25 * FPS)                                   # lift clear first
+    r1 = min(max(r0 + 1, t_release - int(0.15 * FPS)), r0 + int(ramp_out * FPS * 2))
     w_out = 1 - _smoothstep((t - r0) / max(1, r1 - r0))
     return np.where(t <= t_grasp, w_in, w_out)
 
 
 def generate(env, ik: SO101IK, actions, src_xy, src_yaw, new_xy, new_yaw, shift_timing="before"):
-    """New joint-target trajectory (T x 6, LeRobot units) for the moved cube.
+    """Joint commands (T x 6, LeRobot units) doing the demonstrated task on the moved object.
 
-    shift_timing="before": the displacement is complete before the final descent
-    (the gripper comes straight down onto the moved cube). "during": it ramps in
-    over the last ramp_in seconds before the grasp, i.e. during the descent (the
-    naive schedule; kept as an ablation)."""
+    shift_timing="before" completes the displacement before the final descent, so
+    the gripper comes straight down onto the object; "during" ramps it over the
+    last ramp_in seconds before the grasp (the naive schedule, kept as an ablation)."""
     actions = np.asarray(actions, float)
-    T = len(actions)
-    t_g, t_r = segment(actions)
+    t_grasp, t_release = segment(actions)
     q_src = env.lerobot_to_rad(actions)
-    pts, axes = [], []
-    for q in q_src:
-        p, a = ik.fk(q[:5])
-        pts.append(ik.grasp_point(q[:5]))
-        axes.append(a)
-    pts, axes = np.array(pts), np.array(axes)
-    t_d = descent_start(pts[:, 2], t_g) if shift_timing == "before" else t_g
-    w = displacement_weight(T, t_g, t_r, t_d)
-    d_xy = np.r_[np.asarray(new_xy) - np.asarray(src_xy), 0.0]
-    # wrist: rotate the jaws by the cube's yaw change relative to the new bearing
-    src_bearing = np.arctan2(src_xy[1], src_xy[0])
-    new_bearing = np.arctan2(new_xy[1], new_xy[0])
-    d_roll = wrap90((new_yaw - new_bearing) - (src_yaw - src_bearing))
+    points = np.array([ik.grasp_point(q[:5]) for q in q_src])
+    axes = np.array([ik.fk(q[:5])[1] for q in q_src])
+    t_descent = descent_start(points[:, 2], t_grasp) if shift_timing == "before" else t_grasp
+    w = displacement_weight(len(actions), t_grasp, t_release, t_descent)
+    shift = np.r_[np.asarray(new_xy) - np.asarray(src_xy), 0.0]
+    src_bearing, new_bearing = np.arctan2(src_xy[1], src_xy[0]), np.arctan2(new_xy[1], new_xy[0])
+    d_roll = wrap90((new_yaw - new_bearing) - (src_yaw - src_bearing))   # jaws relative to the object
     out = np.empty_like(actions)
     q = q_src[0, :5].copy()
-    for t in range(T):
-        p = pts[t] + w[t] * d_xy
-        roll = q_src[t, 4] + w[t] * d_roll
-        # keep the operator's approach direction, re-aimed at the new bearing
-        ax = axes[t].copy()
-        rot = w[t] * (new_bearing - src_bearing)
-        c, s = np.cos(rot), np.sin(rot)
-        ax[:2] = [c * ax[0] - s * ax[1], s * ax[0] + c * ax[1]]
-        q, _ = ik.solve(p, approach=ax, seed=q, roll=roll)
+    for t in range(len(actions)):
+        c, s = np.cos(w[t] * (new_bearing - src_bearing)), np.sin(w[t] * (new_bearing - src_bearing))
+        axis = axes[t].copy()                                        # operator's approach, re-aimed
+        axis[:2] = [c * axis[0] - s * axis[1], s * axis[0] + c * axis[1]]
+        q, _ = ik.solve(points[t] + w[t] * shift, approach=axis, seed=q, roll=q_src[t, 4] + w[t] * d_roll)
         out[t, :5] = env.rad_to_lerobot(np.r_[q, 0])[:5]
-        out[t, 5] = actions[t, 5]                       # gripper timing unchanged
+        out[t, 5] = actions[t, 5]                                    # gripper timing unchanged
     return out
