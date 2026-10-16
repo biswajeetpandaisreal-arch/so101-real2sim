@@ -141,6 +141,16 @@ def policy_section(runs, out):
         n = {o: sum(r["outcome"] == o for r in rows) for o in OUTCOMES}
         lifted = n["success"] + n["not_delivered"]
         out.append(f"| {NAMES[c]} | " + " | ".join(str(n[o]) for o in OUTCOMES) + f" | {fmt_rate(lifted, len(rows))} |")
+    out += ["\n**Exploratory, not pre-registered:** is the object lifted at all (interpolation + extrapolation)?\n",
+            "| A | B | lifted A | lifted B | Fisher p |", "|---|---|---|---|---|"]
+    for a, b in [(a, b) for a, b in COMPARISONS if a in runs and b in runs]:
+        counts = []
+        for c in (a, b):
+            rows = [r for r in runs[c] if r["set"] != "seen"]
+            counts.append((sum(r["outcome"] in ("success", "not_delivered") for r in rows), len(rows)))
+        (ka, na), (kb, nb) = counts
+        out.append(f"| {NAMES[a]} | {NAMES[b]} | {fmt_rate(ka, na)} | {fmt_rate(kb, nb)} | "
+                   f"{fisher_exact([[ka, na - ka], [kb, nb - kb]])[1]:.2g} |")
     out.append("")
 
 

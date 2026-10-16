@@ -47,33 +47,43 @@ Success with 95% Wilson intervals, pooled over training seeds; checkpoints chose
 | condition | seeds | seen marks | interpolation | extrapolation |
 |---|---|---|---|---|
 | real only | 3 | 15/24 = 62% [43, 79] | 40/114 = 35% [27, 44] | 55/180 = 31% [24, 38] |
-| real + 200 generated | 2 | 3/16 = 19% [7, 43] | 23/76 = 30% [21, 41] | 26/120 = 22% [15, 30] |
-| real + 200 naive-shift | 1 | 1/8 = 12% [2, 47] | 2/38 = 5% [1, 17] | 3/60 = 5% [2, 14] |
+| real + 200 generated | 3 | 8/24 = 33% [18, 53] | 41/114 = 36% [28, 45] | 62/180 = 34% [28, 42] |
+| real + 200 naive-shift | 3 | 1/24 = 4% [1, 20] | 4/114 = 4% [1, 9] | 4/180 = 2% [1, 6] |
+| real only, 2x steps (post-hoc) | 1 | 5/8 = 62% [31, 86] | 9/38 = 24% [13, 39] | 23/60 = 38% [27, 51] |
 
 **Per seed** (success %):
 
 - real only: seen 62, 62, 62; interp 34, 37, 34; extrap 27, 27, 38
-- real + 200 generated: seen 0, 38; interp 26, 34; extrap 17, 27
-- real + 200 naive-shift: seen 12; interp 5; extrap 5
+- real + 200 generated: seen 0, 38, 62; interp 26, 34, 47; extrap 17, 27, 60
+- real + 200 naive-shift: seen 12, 0, 0; interp 5, 3, 3; extrap 5, 0, 2
 
 **Tests** (pooled over seeds): Fisher's exact on the success counts, and exact McNemar on trials paired by seed, position and trial.
 
 | A | B | set | Fisher p | McNemar: only B / only A succeeds, p |
 |---|---|---|---|---|
-| real only | real + 200 generated | interp | 0.532 | 11 / 15, p = 0.557 |
-| real only | real + 200 generated | extrap | 0.111 | 16 / 22, p = 0.418 |
-| real only | real + 200 naive-shift | interp | 0.000254 | 1 / 12, p = 0.00342 |
-| real only | real + 200 naive-shift | extrap | 1.91e-05 | 1 / 14, p = 0.000977 |
-| real + 200 naive-shift | real + 200 generated | interp | 0.00174 | 9 / 1, p = 0.0215 |
-| real + 200 naive-shift | real + 200 generated | extrap | 0.00445 | 9 / 2, p = 0.0654 |
+| real only | real + 200 generated | interp | 1 | 22 / 21, p = 1 |
+| real only | real + 200 generated | extrap | 0.5 | 38 / 31, p = 0.47 |
+| real only | real + 200 naive-shift | interp | 5.4e-10 | 2 / 38, p = 1.49e-09 |
+| real only | real + 200 naive-shift | extrap | 2.4e-14 | 1 / 52, p = 1.2e-14 |
+| real + 200 naive-shift | real + 200 generated | interp | 2.38e-10 | 39 / 2, p = 7.84e-10 |
+| real + 200 naive-shift | real + 200 generated | extrap | 7.26e-17 | 60 / 2, p = 8.47e-16 |
 
 **How the trials ended** (interpolation + extrapolation, pooled). "Lifted" = success + lifted but not delivered.
 
 | condition | success | no contact | pushed | lifted, not delivered | lifted |
 |---|---|---|---|---|---|
 | real only | 95 | 6 | 113 | 80 | 175/294 = 60% [54, 65] |
-| real + 200 generated | 49 | 1 | 57 | 89 | 138/196 = 70% [64, 76] |
-| real + 200 naive-shift | 5 | 57 | 32 | 4 | 9/98 = 9% [5, 17] |
+| real + 200 generated | 103 | 1 | 66 | 124 | 227/294 = 77% [72, 82] |
+| real + 200 naive-shift | 8 | 186 | 85 | 15 | 23/294 = 8% [5, 11] |
+| real only, 2x steps (post-hoc) | 32 | 2 | 39 | 25 | 57/98 = 58% [48, 67] |
+
+**Exploratory, not pre-registered:** is the object lifted at all (interpolation + extrapolation)?
+
+| A | B | lifted A | lifted B | Fisher p |
+|---|---|---|---|---|
+| real only | real + 200 generated | 175/294 = 60% [54, 65] | 227/294 = 77% [72, 82] | 5.5e-06 |
+| real only | real + 200 naive-shift | 175/294 = 60% [54, 65] | 23/294 = 8% [5, 11] | 2.9e-43 |
+| real + 200 naive-shift | real + 200 generated | 23/294 = 8% [5, 11] | 227/294 = 77% [72, 82] | 8e-72 |
 
 ![success over the table](figures/success_heatmaps.png)
 
