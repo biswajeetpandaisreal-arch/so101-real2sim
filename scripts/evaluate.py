@@ -23,9 +23,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from real2sim.dataset_io import TASK, load_episodes
-from real2sim.layout import is_interpolation, read_layout, train_hull, workspace
-from real2sim.sim_env import FPS, SO101Env
+from real2sim.data import TASK, load_episodes
+from real2sim.sim import FPS, SO101Env, is_interpolation, read_layout, train_hull, workspace
 from real2sim.stats import wilson
 
 GRID_N = 7

@@ -2,7 +2,7 @@
 
 Resume-safe: a run with an evaluation summary is skipped, and a run with
 checkpoints but no summary is only evaluated. Runs start as soon as their
-dataset (scripts/generate.py) is complete.
+dataset (scripts/prepare_data.py generate) is complete.
 
   real          replays of the recorded demonstrations only      3 seeds
   gen200        + 200 generated demonstrations (method)          3 seeds
@@ -11,7 +11,13 @@ dataset (scripts/generate.py) is complete.
   gen200long    training; not part of the pre-registered plan)
   gen25, gen100, nofilter200   ablations (not run for lack of time; --only)
 
-    python scripts/run_experiments.py --parallel 3
+    python scripts/experiments.py --parallel 3
+
+Training runs LeRobot's trainer through `experiments.py train <lerobot-train
+arguments>`, which works around one Windows problem: LeRobot marks the newest
+checkpoint with a `checkpoints/last` symlink, which Windows refuses without
+Developer Mode, crashing training at its first checkpoint. The newest
+checkpoint is recorded in `checkpoints/last.txt` instead.
 """
 
 import argparse
@@ -58,7 +64,7 @@ def commands(run: str, a) -> list[list[str]]:
     cond = CONDITIONS[name]
     out_dir = f"outputs/train/{run}"
     checkpoints = ROOT / out_dir / "checkpoints"
-    train = [sys.executable, "scripts/train.py", "--policy.type=act", "--policy.device=cuda",
+    train = [sys.executable, "scripts/experiments.py", "train", "--policy.type=act", "--policy.device=cuda",
              "--policy.push_to_hub=false", "--dataset.repo_id=local/so101_sim", *episodes_arg(cond),
              f"--dataset.root=data/datasets/{cond.dataset}", "--dataset.video_backend=pyav", f"--output_dir={out_dir}",
              f"--steps={a.steps * cond.steps_factor}", f"--save_freq={a.save_every * cond.steps_factor}",
@@ -68,7 +74,23 @@ def commands(run: str, a) -> list[list[str]]:
     return ([] if trained else [train]) + [evaluate]
 
 
+def lerobot_train(argv):
+    import lerobot.scripts.lerobot_train as lerobot_train
+
+    def mark_last_checkpoint(checkpoint_dir: Path) -> Path:
+        marker = checkpoint_dir.parent / "last.txt"
+        marker.write_text(checkpoint_dir.name)
+        return marker
+
+    if sys.platform == "win32":
+        lerobot_train.update_last_checkpoint = mark_last_checkpoint
+    sys.argv = ["lerobot-train", *argv]
+    lerobot_train.main()
+
+
 def main():
+    if sys.argv[1:2] == ["train"]:
+        return lerobot_train(sys.argv[2:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--parallel", type=int, default=3, help="concurrent runs (3 fit a 12 GB GPU; 5 do not)")
     ap.add_argument("--steps", type=int, default=8000)

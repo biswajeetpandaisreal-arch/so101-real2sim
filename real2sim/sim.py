@@ -1,4 +1,4 @@
-"""MuJoCo twin of the SO-101 pick-and-place setup.
+"""MuJoCo twin of the SO-101 pick-and-place setup, and the real table layout.
 
 Commands use LeRobot units (degrees for the five arm joints, 0-100 for the
 gripper), so recorded teleoperation drives the simulated arm directly. Three
@@ -8,20 +8,25 @@ file exists:
   config/calibration/so101_follower.json   joint limits (the real arm rests at
                                            wrist_flex -102 deg, beyond the
                                            Menagerie limit of +/-95 deg)
-  sim/actuators_fitted.json                identified servo dynamics
-                                           (scripts/sysid_fit.py)
-  config/layout.csv                        where the box is on the table
+  sim/actuators_fitted.json                identified servo dynamics (scripts/sysid.py)
+  config/layout.csv                        where the box and the marks are
+
+Layout positions are given from the shoulder-pan axis (the centre of the
+rotating base): `fwd_cm` straight out in front of the robot, `left_cm` to its
+left. Their provenance is in the `source` column: the training and
+interpolation marks come from forward kinematics at the real grasps, mark 6 and
+the box from a top-down photo fitted to those. The MuJoCo origin is the base
+frame, 38.8 mm behind the pan axis.
 """
 
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
 import mujoco
 import numpy as np
-
-from .layout import read_layout
 
 ROOT = Path(__file__).resolve().parent.parent
 SCENE = ROOT / "sim" / "scene_task.xml"
@@ -30,9 +35,45 @@ CALIBRATION = ROOT / "config" / "calibration" / "so101_follower.json"
 LAYOUT = ROOT / "config" / "layout.csv"
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 FPS = 30                                            # LeRobot recording rate
-ACTUATOR_PARAMS = ("kp", "kv", "damping", "frictionloss", "armature")
+PAN_AXIS_X = 0.0388                                 # pan axis in the MuJoCo base frame (m), from so101.xml
 
 
+# ── table layout ───────────────────────────────────────────────────────────────
+def to_sim(fwd_cm: float, left_cm: float) -> np.ndarray:
+    return np.array([fwd_cm / 100.0 + PAN_AXIS_X, left_cm / 100.0])
+
+
+def to_table_cm(xy) -> np.ndarray:
+    """Inverse of to_sim: (forward, left) in cm from the pan axis."""
+    return np.array([(xy[0] - PAN_AXIS_X) * 100.0, xy[1] * 100.0])
+
+
+def read_layout(path: Path = LAYOUT) -> dict[str, dict]:
+    with open(path, newline="") as f:
+        return {r["name"]: {"role": r["role"], "xy": to_sim(float(r["fwd_cm"]), float(r["left_cm"]))}
+                for r in csv.DictReader(f)}
+
+
+def train_hull(layout: dict[str, dict]):
+    """Convex hull of the demonstrated object positions."""
+    from scipy.spatial import Delaunay
+    return Delaunay(np.array([s["xy"] for s in layout.values() if s["role"] == "train"]))
+
+
+def is_interpolation(xy, hull) -> bool:
+    return bool(hull.find_simplex(np.asarray(xy)[None])[0] >= 0)
+
+
+def workspace(layout: dict[str, dict], margin: float = 0.015, max_x: float = 0.41):
+    """(xmin, xmax, ymin, ymax) covering every mark plus a margin, capped at the
+    arm's comfortable reach. Generated object positions are sampled from it and
+    the test grid spans it."""
+    xy = np.array([s["xy"] for s in layout.values() if s["role"] != "box"])
+    lo, hi = xy.min(0) - margin, xy.max(0) + margin
+    return float(lo[0]), float(min(hi[0], max_x)), float(lo[1]), float(hi[1])
+
+
+# ── the twin ───────────────────────────────────────────────────────────────────
 def _load(path_or_value):
     if isinstance(path_or_value, Path):
         return json.loads(path_or_value.read_text()) if path_or_value.exists() else None
@@ -75,7 +116,6 @@ class SO101Env:
             half = max(np.deg2rad((c["range_max"] - c["range_min"]) * 360 / 4095 / 2), m.jnt_range[j, 1])
             m.jnt_range[j] = m.actuator_ctrlrange[a] = (-half, half)
 
-    # ── actuators ───────────────────────────────────────────────────────────
     def get_actuators(self) -> dict:
         m = self.model
         return {j: {"kp": float(m.actuator_gainprm[a, 0]), "kv": float(-m.actuator_biasprm[a, 2]),
@@ -97,7 +137,6 @@ class SO101Env:
                 if key in p:
                     arr[d] = p[key]
 
-    # ── units ───────────────────────────────────────────────────────────────
     def lerobot_to_rad(self, a) -> np.ndarray:
         a = np.asarray(a, float)
         q = np.deg2rad(a)
@@ -112,7 +151,6 @@ class SO101Env:
         a[..., 5] = (q[..., 5] - lo) / (hi - lo) * 100.0
         return a
 
-    # ── episodes ────────────────────────────────────────────────────────────
     def reset(self, obj_xy, obj_yaw: float = 0.0, q0_lerobot=None):
         mujoco.mj_resetData(self.model, self.data)
         q = self.obj_qadr
@@ -139,10 +177,8 @@ class SO101Env:
     def success(self) -> bool:
         """Object resting on the box floor, below the wall tops."""
         p = self.object_pos()
-        d = np.abs(p[:2] - self.box_pos[:2])
-        return bool((d < self.box_half).all() and p[2] < self.box_top)
+        return bool((np.abs(p[:2] - self.box_pos[:2]) < self.box_half).all() and p[2] < self.box_top)
 
-    # ── rendering ───────────────────────────────────────────────────────────
     # Policy observations use the arm's collision geometry and no shadows: ~10 ms
     # per camera pair instead of ~110 ms with the 400k-triangle CAD meshes on this
     # laptop's integrated GPU. Training and evaluation see the same rendering;

@@ -22,7 +22,7 @@ import sys
 import lerobot.scripts.lerobot_record as lerobot_record
 from lerobot.utils.keyboard_input import apply_recording_control, create_key_listener
 
-from real2sim.dataset_io import TASK
+from real2sim.data import TASK
 from real2sim.hardware import CALIBRATION_DIR, FOLLOWER_PORT, LEADER_PORT
 
 CAMERAS = ("{ wrist: {type: opencv, index_or_path: 1, width: 640, height: 480, fps: 30}, "

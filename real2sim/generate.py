@@ -19,7 +19,7 @@ from __future__ import annotations
 import numpy as np
 
 from .kinematics import SO101IK
-from .sim_env import FPS
+from .sim import FPS
 
 
 def wrap90(a):

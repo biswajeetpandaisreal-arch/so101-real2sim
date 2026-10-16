@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import binomtest, fisher_exact
 
-from real2sim.layout import read_layout, to_table_cm
+from real2sim.sim import read_layout, to_table_cm
 from real2sim.stats import fmt_rate
 
 RESULTS = Path(__file__).resolve().parent.parent / "results"

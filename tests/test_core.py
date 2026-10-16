@@ -6,11 +6,10 @@
 import numpy as np
 import pytest
 
-from real2sim.demos import active_span, grasp_frame
+from real2sim.data import active_span, grasp_frame
 from real2sim.generate import displacement_weight, segment, wrap90
 from real2sim.kinematics import SO101IK, min_jerk
-from real2sim.layout import read_layout, to_sim, to_table_cm
-from real2sim.sim_env import FPS, SO101Env
+from real2sim.sim import FPS, SO101Env, read_layout, to_sim, to_table_cm
 from real2sim.stats import wilson
 
 

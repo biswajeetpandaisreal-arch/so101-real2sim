@@ -21,12 +21,11 @@ from pathlib import Path
 
 import numpy as np
 
-from real2sim.demos import load_demos, read_episode_list, replay
+from real2sim.data import load_demos, read_episode_list, replay
 from real2sim.generate import generate
 from real2sim.hardware import LineReader, follower, quiet_lerobot
 from real2sim.kinematics import SO101IK, min_jerk
-from real2sim.layout import read_layout
-from real2sim.sim_env import FPS, JOINTS, ROOT, SO101Env
+from real2sim.sim import FPS, JOINTS, ROOT, SO101Env, read_layout
 
 OUTCOMES = {"y": "success", "1": "no_contact", "2": "pushed", "3": "not_delivered"}
 
