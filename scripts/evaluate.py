@@ -4,7 +4,7 @@ Every policy is tested on the same, fixed initial conditions (paired design):
 
   seen    the four demonstrated cube spots (config/layout.csv, role=train)
   val     12 random positions, used ONLY to choose the checkpoint
-  test    a 7 x 8 grid over the workspace, each cell labelled
+  test    a 7 x 7 grid over the table workspace, each cell labelled
             interp  inside the convex hull of the demonstrated spots
             extrap  outside it
 
@@ -29,11 +29,10 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from real2sim.dataset_io import TASK  # noqa: E402
-from real2sim.layout import is_interpolation, read_layout, train_hull  # noqa: E402
+from real2sim.layout import is_interpolation, read_layout, train_hull, workspace  # noqa: E402
 from real2sim.sim_env import FPS, SO101Env  # noqa: E402
 
-GRID_X = np.round(np.arange(0.17, 0.321, 0.025), 3)               # 7 columns
-GRID_Y = np.round(np.arange(-0.05, 0.161, 0.03), 3)               # 8 rows
+GRID_N = 7                                                        # 7 x 7 test grid over the workspace
 START = np.array([0.0, -100.0, 97.0, 75.0, 0.0, 10.0])            # default start; see --start-from
 LIFT, MOVED = 0.02, 0.005
 
@@ -52,13 +51,15 @@ def position_sets(layout=None, n_val=12, seed=1234):
     layout = layout or read_layout()
     hull = train_hull(layout)
     seen = [("seen", s["xy"]) for s in layout.values() if s["role"] == "train"]
+    x0, x1, y0, y1 = workspace(layout)
+    gx, gy = np.linspace(x0, x1, GRID_N), np.linspace(y0, y1, GRID_N)
     test = [("interp" if is_interpolation(xy, hull) else "extrap", xy)
-            for xy in (np.array([x, y]) for x in GRID_X for y in GRID_Y)]
+            for xy in (np.array([x, y]) for x in gx for y in gy)]
     rng = np.random.default_rng(seed)
     taken = [xy for _, xy in seen + test]
     val = []
     while len(val) < n_val:                                        # off-grid, away from test cells
-        xy = np.array([rng.uniform(0.17, 0.32), rng.uniform(-0.05, 0.16)])
+        xy = np.array([rng.uniform(x0, x1), rng.uniform(y0, y1)])
         if min(np.linalg.norm(xy - t) for t in taken) > 0.01:
             val.append(("val", xy))
             taken.append(xy)

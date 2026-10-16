@@ -35,3 +35,12 @@ def train_hull(layout: dict[str, dict]):
 
 def is_interpolation(xy, hull) -> bool:
     return bool(hull.find_simplex(np.asarray(xy)[None])[0] >= 0)
+
+
+def workspace(layout: dict[str, dict], margin: float = 0.015, max_x: float = 0.41):
+    """Axis-aligned region (xmin, xmax, ymin, ymax) covering every cube spot on the
+    table plus a margin, capped at the arm's comfortable reach. Generated cube
+    positions are sampled from it and the test grid spans it."""
+    xy = np.array([s["xy"] for s in layout.values() if s["role"] != "basket"])
+    lo, hi = xy.min(0) - margin, xy.max(0) + margin
+    return float(lo[0]), float(min(hi[0], max_x)), float(lo[1]), float(hi[1])

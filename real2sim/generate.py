@@ -26,14 +26,20 @@ from .sim_env import FPS
 
 
 def segment(actions, closed_below=None):
-    """Indices of the grasp (gripper closes) and release (gripper re-opens)."""
+    """Indices of the grasp (gripper closes after having opened for the
+    approach — real demos start and end with the gripper shut at rest) and the
+    release (gripper re-opens)."""
     g = actions[:, 5]
     lo, hi = np.percentile(g, 5), np.percentile(g, 95)
     thr = closed_below if closed_below is not None else (lo + hi) / 2
     closed = g < thr
-    if not closed.any():
+    opened = np.where(~closed)[0]
+    if not len(opened):
+        raise ValueError("gripper never opens in this demonstration")
+    shut = np.where(closed[opened[0]:])[0]
+    if not len(shut):
         raise ValueError("gripper never closes in this demonstration")
-    t_grasp = int(np.argmax(closed))
+    t_grasp = int(opened[0] + shut[0])
     after = np.where(~closed[t_grasp:])[0]
     t_release = t_grasp + int(after[0]) if len(after) else len(g) - 1
     return t_grasp, t_release

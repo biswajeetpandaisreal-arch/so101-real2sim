@@ -26,7 +26,23 @@ def read_spots(path: Path) -> dict[int, dict]:
     with open(path, newline="") as f:
         return {int(r["episode"]): {"xy": (float(r["x"]), float(r["y"])),
                                     "yaw": np.radians(float(r.get("yaw_deg") or 0.0)),
-                                    "spot": r.get("spot", "")} for r in csv.DictReader(f)}
+                                    "spot": r.get("spot", ""),
+                                    "frames": (int(r["start"]), int(r["end"])) if r.get("start") else None}
+                for r in csv.DictReader(f)}
+
+
+def load_demos(data: Path, repo_id: str, spots: dict) -> list[dict]:
+    """Recorded episodes listed in episodes.csv, trimmed to their task frames."""
+    out = []
+    for ep in load_episodes(data, repo_id):
+        sp = spots.get(ep["episode"])
+        if sp is None:
+            continue
+        if sp["frames"]:
+            a, b = sp["frames"]
+            ep = {**ep, "action": ep["action"][a:b], "state": ep["state"][a:b]}
+        out.append(ep)
+    return out
 
 
 def replay(env, ep, spot, writer=None, use="action"):

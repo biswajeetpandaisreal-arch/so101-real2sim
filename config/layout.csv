@@ -1,12 +1,8 @@
-name,role,fwd_cm,left_cm
-A,train,17,11
-B,train,25,11
-C,train,17,-3
-D,train,25,-3
-I1,interp,21,7
-I2,interp,19,1
-I3,interp,23,4
-E1,extrap,14,5
-E2,extrap,28,4
-E3,extrap,21,15
-basket,basket,21,-17
+name,role,fwd_cm,left_cm,source
+2,train,21.9,8.7,arm (median of grasps)
+3,train,23.8,-6.9,arm (median of grasps)
+4,train,33.6,-6.6,arm (median of grasps)
+5,train,34.1,10.3,arm (median of grasps)
+1,interp,29.7,2.4,arm (test-episode grasp)
+6,extrap,37.6,0.5,photo fitted to arm
+basket,basket,31.3,-22.9,photo fitted to arm

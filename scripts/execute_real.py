@@ -10,13 +10,12 @@ The operator scores each run by key (y = cube in basket; otherwise the failure
 type). The follower's measured joint positions are logged during every run.
 
     python scripts/execute_real.py --data data/so101_real --trials 2
-Keys: Enter = run, s = skip; after a run: y success, 1 no contact, 2 pushed,
+Type then Enter: '' = run, s = skip; after a run: y success, 1 no contact, 2 pushed,
 3 lifted but not delivered.  Keep clear of the arm; Ctrl+C returns it to rest.
 """
 
 import argparse
 import json
-import msvcrt
 import sys
 import time
 from pathlib import Path
@@ -24,23 +23,17 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from real2sim.console import LineReader, quiet_lerobot  # noqa: E402
 from real2sim.dataset_io import load_episodes  # noqa: E402
 from real2sim.generate import generate  # noqa: E402
 from real2sim.kinematics import SO101IK  # noqa: E402
 from real2sim.layout import read_layout  # noqa: E402
 from real2sim.sim_env import FPS, JOINTS, SO101Env  # noqa: E402
-from scripts.replay import read_spots, replay  # noqa: E402
+from scripts.replay import load_demos, read_spots, replay  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CALIB = ROOT / "config" / "calibration"
 OUTCOMES = {"y": "success", "1": "no_contact", "2": "pushed", "3": "not_delivered"}
-
-
-def key(valid):
-    while True:
-        k = msvcrt.getwch()
-        if k in valid:
-            return k
 
 
 def plan_for(env, ik, eps, spots, target_xy, rank):
@@ -64,14 +57,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="data/so101_real")
     ap.add_argument("--repo-id", default="local/so101_real")
-    ap.add_argument("--trials", type=int, default=2)
-    ap.add_argument("--spots", default="I1,I2,I3,E1,E2,E3")
+    ap.add_argument("--trials", type=int, default=3)
+    ap.add_argument("--spots", default="1,6")
     ap.add_argument("--out", default="results/real_execution")
     a = ap.parse_args()
     from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
     layout = read_layout()
     spots = read_spots(Path(a.data) / "episodes.csv")
-    eps = [e for e in load_episodes(Path(a.data), a.repo_id) if e["episode"] in spots]
+    eps = load_demos(Path(a.data), a.repo_id, spots)
     env = SO101Env()
     ik = SO101IK(env)
     plans = []
@@ -81,8 +74,10 @@ def main():
             plans.append({"spot": name, "role": layout[name]["role"], "trial": k, "source": src, "acts": acts})
             print(f"{name} trial {k}: source episode {src}, sim {'ok' if acts is not None else 'FAILED'}")
     robot = SO101Follower(SO101FollowerConfig(port="COM3", id="so101_follower",
-                                              calibration_dir=CALIB, max_relative_target=10))
+                                              calibration_dir=CALIB, max_relative_target=10.0))
+    quiet_lerobot()
     robot.connect()
+    keys = LineReader()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d_%H%M%S")
@@ -110,15 +105,16 @@ def main():
                 results.append({k: p[k] for k in ("spot", "role", "trial", "source")} | {"outcome": "no_sim_plan"})
                 continue
             print(f"\nPlace the cube on {p['spot']} ({p['role']}), square to the robot. "
-                  f"Enter = run, s = skip")
-            if key(("\r", "s")) == "s":
+                  f"Enter = run, s + Enter = skip", flush=True)
+            if keys.wait(("", "s")) == "s":
                 continue
             log = []
             glide(read(), p["acts"][0], 3.0, log)
             stream(p["acts"], log)
             glide(read(), rest, 3.0, log)
-            print("Outcome?  y = in basket, 1 = no contact, 2 = pushed, 3 = lifted not delivered")
-            o = OUTCOMES[key(tuple(OUTCOMES))]
+            print("Outcome + Enter:  y = in basket, 1 = no contact, 2 = pushed, "
+                  "3 = lifted not delivered", flush=True)
+            o = OUTCOMES[keys.wait(tuple(OUTCOMES))]
             print(f"  {o}")
             results.append({k: p[k] for k in ("spot", "role", "trial", "source")} | {"outcome": o})
             logs[f"{p['spot']}_{p['trial']}"] = np.array(log)

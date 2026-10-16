@@ -18,26 +18,43 @@ SCENE = Path(__file__).resolve().parent.parent / "sim" / "scene_task.xml"
 # Applied whenever the file exists; SO101Env(actuators=None) gives the
 # Menagerie defaults for comparison.
 ACTUATORS = Path(__file__).resolve().parent.parent / "sim" / "actuators_fitted.json"
+# The real follower's calibration. Its recorded range of motion is wider than the
+# Menagerie model's joint limits (e.g. wrist_flex +/-101.5 deg vs +/-95 deg; the arm
+# rests at -102 deg), so the arm joints' limits are set from it.
+CALIBRATION = Path(__file__).resolve().parent.parent / "config" / "calibration" / "so101_follower.json"
+LAYOUT = Path(__file__).resolve().parent.parent / "config" / "layout.csv"
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 FPS = 30                                    # LeRobot recording rate
-BASKET_HALF = 0.07 - 0.005                  # usable half-width of the basket floor (m)
 
 
 class SO101Env:
     def __init__(self, scene: Path = SCENE, render_size: tuple[int, int] = (240, 320),
-                 actuators: Path | dict | None = ACTUATORS):
+                 actuators: Path | dict | None = ACTUATORS, calibration: Path | None = CALIBRATION,
+                 layout: Path | None = LAYOUT):
         self.model = mujoco.MjModel.from_xml_path(str(scene))
         self.data = mujoco.MjData(self.model)
         self.jnt = [self.model.joint(n).id for n in JOINTS]
         self.qadr = np.array([self.model.jnt_qposadr[j] for j in self.jnt])
         self.dadr = np.array([self.model.jnt_dofadr[j] for j in self.jnt])
         self.act = np.array([self.model.actuator(n).id for n in JOINTS])
+        if calibration is not None and Path(calibration).exists():
+            self._measured_limits(json.loads(Path(calibration).read_text()))
         self.range = np.array([self.model.jnt_range[j] for j in self.jnt])
         cube_j = self.model.body("cube").jntadr[0]
         self.cube_qadr = self.model.jnt_qposadr[cube_j]
         self.cube_dadr = self.model.jnt_dofadr[cube_j]
         self.cube_body = self.model.body("cube").id
+        if layout is not None and Path(layout).exists():          # basket where it is on the real table
+            from .layout import read_layout
+            b = read_layout(Path(layout)).get("basket")
+            if b is not None:
+                self.model.body("basket").pos[:2] = b["xy"]
         self.basket_pos = self.model.body("basket").pos.copy()
+        floor = self.model.geom("basket_bottom").size
+        self.basket_half = floor[:2] - 0.005                      # usable floor half-sizes (m)
+        self.basket_top = 2 * self.model.geom("basket_wall").size[2] + 0.006
+        g = self.model.geom("cube")
+        self.cube_half_h = g.size[1] if g.type == mujoco.mjtGeom.mjGEOM_CYLINDER else g.size[2]
         self.tcp = self.model.site("gripperframe").id
         self.substeps = max(1, round(1.0 / FPS / self.model.opt.timestep))
         self.render_size = render_size
@@ -47,6 +64,18 @@ class SO101Env:
         self.actuators = actuators
         if actuators:
             self.set_actuators(actuators)
+
+    def _measured_limits(self, calib: dict):
+        """Arm joint limits from the real arm's calibrated range (LeRobot maps the
+        range midpoint to 0 deg, so it is symmetric). The gripper keeps its own
+        0-100 mapping onto the model's jaw range."""
+        m = self.model
+        for name, j, a in zip(JOINTS[:5], self.jnt[:5], self.act[:5]):
+            c = calib[name]
+            half = np.deg2rad((c["range_max"] - c["range_min"]) * 360 / 4095 / 2)
+            half = max(half, m.jnt_range[j, 1])                 # never narrower than the model
+            m.jnt_range[j] = (-half, half)
+            m.actuator_ctrlrange[a] = (-half, half)
 
     # ── actuator model ──────────────────────────────────────────────────────
     def get_actuators(self) -> dict:
@@ -90,7 +119,7 @@ class SO101Env:
     def reset(self, cube_xy, cube_yaw: float = 0.0, q0_lerobot=None):
         mujoco.mj_resetData(self.model, self.data)
         q = self.cube_qadr
-        self.data.qpos[q:q + 3] = [cube_xy[0], cube_xy[1], 0.03]
+        self.data.qpos[q:q + 3] = [cube_xy[0], cube_xy[1], self.cube_half_h + 0.001]
         self.data.qpos[q + 3:q + 7] = [np.cos(cube_yaw / 2), 0, 0, np.sin(cube_yaw / 2)]
         if q0_lerobot is not None:
             q0 = self.lerobot_to_rad(q0_lerobot)
@@ -116,10 +145,10 @@ class SO101Env:
         return self.data.site_xpos[self.tcp].copy()
 
     def success(self) -> bool:
-        """Cube resting inside the basket footprint, below the wall tops."""
+        """Object resting inside the basket footprint, below the wall tops."""
         c = self.cube_pos()
         d = np.abs(c[:2] - self.basket_pos[:2])
-        return bool(d[0] < BASKET_HALF and d[1] < BASKET_HALF and c[2] < 0.05)
+        return bool(d[0] < self.basket_half[0] and d[1] < self.basket_half[1] and c[2] < self.basket_top)
 
     # ── rendering ───────────────────────────────────────────────────────────
     def render(self, camera: str) -> np.ndarray:

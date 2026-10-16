@@ -28,16 +28,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from real2sim.dataset_io import SimDatasetWriter, load_episodes  # noqa: E402
 from real2sim.generate import generate  # noqa: E402
 from real2sim.kinematics import SO101IK  # noqa: E402
+from real2sim.layout import read_layout, workspace  # noqa: E402
 from real2sim.sim_env import SO101Env  # noqa: E402
-from scripts.replay import read_spots, replay  # noqa: E402
+from scripts.replay import load_demos, read_spots, replay  # noqa: E402
 
-# Cube placement region for generated episodes (robot base frame, m)
-X_RANGE, Y_RANGE, YAW_RANGE = (0.17, 0.32), (-0.06, 0.16), (-0.4, 0.4)
+# Cube placement region for generated episodes: the table layout's workspace
+X0, X1, Y0, Y1 = workspace(read_layout())
+YAW_RANGE = (-0.4, 0.4)
 
 
 def sample_pose(rng):
-    return (np.array([rng.uniform(*X_RANGE), rng.uniform(*Y_RANGE)]),
-            float(rng.uniform(*YAW_RANGE)))
+    return (np.array([rng.uniform(X0, X1), rng.uniform(Y0, Y1)]), float(rng.uniform(*YAW_RANGE)))
 
 
 def main():
@@ -45,7 +46,7 @@ def main():
     ap.add_argument("--data", required=True)
     ap.add_argument("--repo-id", default="local/so101_real")
     ap.add_argument("--spots", default=None)
-    ap.add_argument("--total", type=int, default=200, help="generated episodes to keep")
+    ap.add_argument("--total", type=int, default=200, help="generated episodes to keep (0: replays only)")
     ap.add_argument("--max-attempts", type=int, default=None)
     ap.add_argument("--mode", choices=("generate", "naive"), default="generate")
     ap.add_argument("--shift-timing", choices=("before", "during"), default="before")
@@ -59,12 +60,15 @@ def main():
     a = ap.parse_args()
     data, out = Path(a.data), Path(a.out)
     spots = read_spots(Path(a.spots) if a.spots else data / "episodes.csv")
-    eps = [e for e in load_episodes(data, a.repo_id) if e["episode"] in spots]
+    eps = load_demos(data, a.repo_id, spots)
     if a.sources:
         keep = set(a.sources.split(","))
         eps = [e for e in eps if spots[e["episode"]]["spot"] in keep]
     env, rng = SO101Env(), np.random.default_rng(a.seed)
     ik = SO101IK(env)
+    valid = [e for e in eps if replay(env, e, spots[e["episode"]])[0]]   # sources the twin reproduces
+    print(f"{len(valid)}/{len(eps)} source demonstrations succeed when replayed; using those", flush=True)
+    eps = valid
     w = None if a.no_render else SimDatasetWriter(out, "local/so101_sim")
     log, n_ep = [], 0
 

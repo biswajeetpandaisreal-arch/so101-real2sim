@@ -16,7 +16,6 @@ compared with the tape-measured one. Two errors are reported:
 
 import argparse
 import json
-import msvcrt
 import sys
 import time
 from pathlib import Path
@@ -25,6 +24,7 @@ import mujoco
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from real2sim.console import LineReader, quiet_lerobot  # noqa: E402
 from real2sim.layout import read_layout  # noqa: E402
 from real2sim.sim_env import FPS, JOINTS, SO101Env  # noqa: E402
 
@@ -74,26 +74,29 @@ def analyse(rec):
     return summary
 
 
-def record(out):
+def record(out, only=None):
     from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
     from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
-    layout = {k: v for k, v in read_layout().items() if v["role"] != "basket"}
+    layout = {k: v for k, v in read_layout().items() if v["role"] != "basket" and (not only or k in only)}
     leader = SO101Leader(SO101LeaderConfig(port="COM4", id="so101_leader", calibration_dir=CALIB))
     robot = SO101Follower(SO101FollowerConfig(port="COM3", id="so101_follower",
-                                              calibration_dir=CALIB, max_relative_target=10))
+                                              calibration_dir=CALIB, max_relative_target=10.0))
+    quiet_lerobot()
     leader.connect()
     robot.connect()
+    keys = LineReader()
     points = []
+    rec = {"tip_geom": TIP_GEOM, "points": points}
+    out.parent.mkdir(parents=True, exist_ok=True)
     try:
         for name, spot in layout.items():
-            print(f"\nTouch the fixed-jaw tip to the centre of cross {name} "
-                  f"({spot['role']}), then press Enter.  s = skip, q = quit")
+            print(f"\n>>> Cross {name} ({spot['role']}): touch the fixed-jaw tip to its centre, "
+                  f"hold still, press Enter.   (s + Enter = skip, q + Enter = finish)", flush=True)
             key = None
-            while key not in ("\r", "s", "q"):
+            while key not in ("", "s", "q"):
                 t0 = time.perf_counter()
                 robot.send_action(leader.get_action())
-                if msvcrt.kbhit():
-                    key = msvcrt.getwch()
+                key = keys.poll()
                 time.sleep(max(0.0, 1.0 / FPS - (time.perf_counter() - t0)))
             if key == "q":
                 break
@@ -105,14 +108,12 @@ def record(out):
             points.append({"name": name, "role": spot["role"], "xy_measured": spot["xy"].tolist(),
                            "q_deg": q.tolist(), "raw_counts": [int(raw[j]) for j in JOINTS],
                            "time": time.time()})
-            print(f"  recorded {name}")
+            out.write_text(json.dumps(rec, indent=1))              # saved after every spot
+            print(f"    recorded {name} ({len(points)} so far)", flush=True)
     finally:
-        print("\nMoving on: lift the leader so the follower clears the table, then let it rest.")
+        print("\nDone: rest the follower on the table (it goes limp now).")
         robot.disconnect()
         leader.disconnect()
-    rec = {"tip_geom": TIP_GEOM, "points": points}
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(rec, indent=1))
     print(f"saved {out}")
     return rec
 
@@ -120,11 +121,13 @@ def record(out):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--analyse", default=None, help="re-analyse a saved recording")
+    ap.add_argument("--only", default=None, help="comma-separated marks to touch (default: all)")
     a = ap.parse_args()
     if a.analyse:
         rec = json.loads(Path(a.analyse).read_text())
     else:
-        rec = record(ROOT / "data" / "touch" / f"touch_{time.strftime('%Y%m%d_%H%M%S')}.json")
+        rec = record(ROOT / "data" / "touch" / f"touch_{time.strftime('%Y%m%d_%H%M%S')}.json",
+                     a.only.split(",") if a.only else None)
     if len(rec["points"]) >= 3:
         analyse(rec)
 

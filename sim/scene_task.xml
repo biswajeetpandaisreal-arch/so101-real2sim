@@ -24,22 +24,24 @@
     <camera name="top" pos="0.25 0 0.75" xyaxes="0 -1 0 1 0 0" fovy="55" />
     <camera name="front" pos="0.62 0 0.32" xyaxes="0 1 0 -0.45 0 0.89" fovy="55" />
 
-    <!-- Cube: 4 x 4 x 6 cm, same collision setup as the digital-twin scene -->
-    <body name="cube" pos="0.25 0.12 0.03">
+    <!-- Object: the real one is an LED tealight, a cylinder 38 mm across and 23 mm tall
+         (the plastic flame on top is not modelled). Body/geom keep the name "cube". -->
+    <body name="cube" pos="0.25 0.0 0.0115">
       <freejoint />
-      <geom type="box" name="cube" size="0.02 0.02 0.03" condim="4"
-        friction="1.2 0.03 0.003" rgba="0.85 0.12 0.1 1" contype="2" conaffinity="1"
-        solref="0.01 1" mass="0.02" />
+      <geom type="cylinder" name="cube" size="0.019 0.0115" condim="4"
+        friction="1.2 0.03 0.003" rgba="0.85 0.7 0.2 1" contype="2" conaffinity="1"
+        solref="0.01 1" mass="0.015" />
     </body>
 
-    <!-- Basket: static open tray (14 x 14 cm, 3 cm walls) -->
-    <body name="basket" pos="0.25 -0.17 0">
-      <geom name="basket_bottom" type="box" size="0.07 0.07 0.003" pos="0 0 0.003"
-        rgba="0.2 0.35 0.65 1" condim="3" friction="1 0.03 0.003" />
-      <geom type="box" size="0.003 0.07 0.03" pos="0.07 0 0.033" rgba="0.2 0.35 0.65 1" />
-      <geom type="box" size="0.003 0.07 0.03" pos="-0.07 0 0.033" rgba="0.2 0.35 0.65 1" />
-      <geom type="box" size="0.07 0.003 0.03" pos="0 0.07 0.033" rgba="0.2 0.35 0.65 1" />
-      <geom type="box" size="0.07 0.003 0.03" pos="0 -0.07 0.033" rgba="0.2 0.35 0.65 1" />
+    <!-- Basket: the real open box, inside 15.8 cm (forward) x 8.4 cm, 4 cm walls.
+         Its position is set at runtime from config/layout.csv. -->
+    <body name="basket" pos="0.279 -0.223 0">
+      <geom name="basket_bottom" type="box" size="0.079 0.042 0.003" pos="0 0 0.003"
+        rgba="0.12 0.12 0.14 1" condim="3" friction="1 0.03 0.003" />
+      <geom name="basket_wall" type="box" size="0.003 0.042 0.02" pos="0.082 0 0.023" rgba="0.12 0.12 0.14 1" />
+      <geom type="box" size="0.003 0.042 0.02" pos="-0.082 0 0.023" rgba="0.12 0.12 0.14 1" />
+      <geom type="box" size="0.085 0.003 0.02" pos="0 0.045 0.023" rgba="0.12 0.12 0.14 1" />
+      <geom type="box" size="0.085 0.003 0.02" pos="0 -0.045 0.023" rgba="0.12 0.12 0.14 1" />
     </body>
   </worldbody>
 </mujoco>
