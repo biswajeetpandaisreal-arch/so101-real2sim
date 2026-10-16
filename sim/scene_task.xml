@@ -23,6 +23,8 @@
     <!-- Cameras used as policy observations -->
     <camera name="top" pos="0.25 0 0.75" xyaxes="0 -1 0 1 0 0" fovy="55" />
     <camera name="front" pos="0.62 0 0.32" xyaxes="0 1 0 -0.45 0 0.89" fovy="55" />
+    <!-- README media only (not a policy observation) -->
+    <camera name="overview" pos="0.720 -0.400 0.400" xyaxes="0.567 0.824 -0.000 -0.453 0.312 0.835" fovy="45" />
 
     <!-- Object: the real one is an LED tealight, a cylinder 38 mm across and 23 mm tall
          (the plastic flame on top is not modelled). Body/geom keep the name "cube". -->

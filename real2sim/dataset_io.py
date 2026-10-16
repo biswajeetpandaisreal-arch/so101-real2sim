@@ -41,7 +41,8 @@ class SimDatasetWriter:
         self.cameras = list(cameras)
         self.ds = LeRobotDataset.create(
             repo_id=repo_id, fps=FPS, root=root, robot_type="so101_follower",
-            features=sim_features({c: size for c in self.cameras}), use_videos=True)
+            features=sim_features({c: size for c in self.cameras}), use_videos=True,
+            streaming_encoding=True)   # encode while frames arrive: ~10x faster than PNG-then-encode
 
     def add(self, env, action):
         frame = {"observation.state": env.state_lerobot().astype(np.float32),

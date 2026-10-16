@@ -89,7 +89,7 @@ def load_policy(path):
     return policy, pre, post
 
 
-def run_trial(env, policy, pre, post, xy, yaw, q0, cameras, seconds=15.0):
+def run_trial(env, policy, pre, post, xy, yaw, q0, cameras, seconds=25.0):   # demos last 9-20 s
     env.reset(xy, yaw, q0_lerobot=q0)
     policy.reset()
     dev = next(policy.parameters()).device

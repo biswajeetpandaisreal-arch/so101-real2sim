@@ -151,10 +151,22 @@ class SO101Env:
         return bool(d[0] < self.basket_half[0] and d[1] < self.basket_half[1] and c[2] < self.basket_top)
 
     # ── rendering ───────────────────────────────────────────────────────────
-    def render(self, camera: str) -> np.ndarray:
+    # Policy observations are rendered with the arm's simplified collision
+    # geometry and no shadows: ~11 ms per camera pair instead of ~110 ms with the
+    # 400k-triangle CAD meshes on this laptop's integrated GPU. Training and
+    # evaluation use the same rendering; pretty=True gives the CAD look for figures.
+    FAST_GROUPS = (1, 1, 0, 1, 1, 0)
+
+    def render(self, camera: str, pretty: bool = False) -> np.ndarray:
         if self._renderer is None:
             self._renderer = mujoco.Renderer(self.model, *self.render_size)
-        self._renderer.update_scene(self.data, camera=camera)
+            self._fast = mujoco.MjvOption()
+            self._fast.geomgroup[:] = self.FAST_GROUPS
+        shadows = self.model.light_castshadow.copy()
+        if not pretty:
+            self.model.light_castshadow[:] = 0
+        self._renderer.update_scene(self.data, camera=camera, scene_option=None if pretty else self._fast)
+        self.model.light_castshadow[:] = shadows
         return self._renderer.render()
 
     def close(self):

@@ -1,0 +1,46 @@
+[
+ {
+  "spot": "1",
+  "role": "interp",
+  "trial": 0,
+  "source": 16,
+  "outcome": "success"
+ },
+ {
+  "spot": "1",
+  "role": "interp",
+  "trial": 1,
+  "source": 17,
+  "outcome": "success"
+ },
+ {
+  "spot": "1",
+  "role": "interp",
+  "trial": 2,
+  "source": 19,
+  "outcome": "success"
+ },
+ {
+  "spot": "6",
+  "role": "extrap",
+  "trial": 0,
+  "source": 12,
+  "outcome": "not_delivered"
+ },
+ {
+  "spot": "6",
+  "role": "extrap",
+  "trial": 1,
+  "source": 12,
+  "outcome": "pushed"
+ },
+ {
+  "spot": "6",
+  "role": "extrap",
+  "trial": 2,
+  "source": 13,
+  "outcome": "not_delivered",
+  "recorded_outcome": "success",
+  "note": "operator mistyped the score (y); corrected afterwards to not_delivered (lifted, not in the box), as seen on video"
+ }
+]
