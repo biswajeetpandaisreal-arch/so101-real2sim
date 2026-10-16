@@ -4,15 +4,12 @@ version = "0.1.0"
 description = "Real SO-101 demonstrations -> measured MuJoCo twin -> object-centric demonstration generation -> ACT"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
-dependencies = [
-    "lerobot[feetech,dataset,training]==0.6.1",
-    "mujoco>=3.3",
-    "numpy",
-    "scipy",
-    "matplotlib",
-    "pillow",
-    "av",
-]
+# Enough for the twin, the generator, the viewer, the tests and the analysis.
+dependencies = ["mujoco>=3.3", "numpy", "scipy", "matplotlib"]
+
+[project.optional-dependencies]
+robot = ["lerobot[feetech,dataset,training]==0.6.1", "pillow", "av"]   # recording, datasets, training
+dev = ["pytest", "ruff"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -27,6 +24,3 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "I", "UP"]
 ignore = ["B905"]           # zip() lengths match by construction (one entry per joint / per trial)
-
-[project.optional-dependencies]
-dev = ["pytest", "ruff"]
