@@ -18,9 +18,29 @@ leader commands through the identified actuator model (right).*
 |---|---|---|
 | Does the twin match the real arm? | Yes, after measuring it | identified servos are 16–62 vs 998 stiffness in the stock model; held-out tracking error drops on every joint; recorded commands replayed in the twin succeed 12/16 (vs 9/16 stock) |
 | Are generated motions physically valid? | Inside the demonstrated area, yes | **on the real arm: 4/4 at mark 1 (interpolation), 0/4 at mark 6 (extrapolation)** |
-| Does generated data improve task success? | **No, not under the planned budget** (prediction P2 failed) | 36% vs 35% inside, 34% vs 31% beyond; p = 1 and 0.5 |
+| Does generated data improve task success? | **Not under the planned budget** (prediction P2 failed) … | 36% vs 35% inside, 34% vs 31% beyond; p = 1 and 0.5 |
+| … and with twice the training? | **Yes, strongly** (post-hoc, one seed: to be confirmed) | **76% vs 24% inside (p = 8e-6), 65% vs 38% beyond (p = 0.006)** |
 | Does it change what the policy learns? | **Yes** | the object is lifted in **77% vs 60%** of unseen-position trials (p = 6e-6, exploratory) |
 | Is the gain from the adapted motion, or just from seeing the object in more places? | The adapted motion | the naive-shift control (object moved, motion unchanged) collapses to 2–4% and reaches for empty air in 186 of 294 trials |
+
+## Quickstart
+
+Everything in simulation runs in [MuJoCo](https://mujoco.org). A fresh clone needs only MuJoCo, NumPy, SciPy and
+Matplotlib:
+
+```bash
+git clone https://github.com/biswajeetpandaisreal-arch/so101-real2sim.git
+cd so101-real2sim
+python -m venv .venv
+.venv\Scripts\activate                # Linux/macOS: source .venv/bin/activate
+pip install -e ".[dev]"
+python scripts/view.py                # MuJoCo viewer: a real demonstration, then adapted to marks 1 and 6
+python -m pytest tests                # 10 checks, a few seconds
+python scripts/analyse.py             # rebuilds every number and figure below from results/
+```
+
+On macOS run the viewer with `mjpython`. Recording, dataset generation and training need LeRobot:
+`pip install -e ".[robot,dev]"` (see [Reproduce](#10-reproduce)).
 
 Every prediction was written down **before** any data was recorded:
 [PREDICTIONS.md](PREDICTIONS.md) (commit `0613d79` precedes all data and results).
@@ -93,6 +113,8 @@ position) with identical initial conditions for every policy. Full tables: [resu
 | the 12 real demonstrations | 62% | 35% | 31% | 60% |
 | + 200 generated | 33% | 36% | 34% | **77%** |
 | + 200 naive-shift (control) | 4% | 4% | 2% | 8% |
+| the 12 real demonstrations, 2× steps (post-hoc, 1 seed) | 62% | 24% | 38% | 58% |
+| **+ 200 generated, 2× steps** (post-hoc, 1 seed) | **62%** | **76%** | **65%** | **89%** |
 
 ![success over the table](results/figures/success_heatmaps.png)
 
@@ -107,8 +129,11 @@ position) with identical initial conditions for every policy. Full tables: [resu
   (27%, 27%, 38%).
 * The naive-shift control reproduces the thesis failure on purpose: 186 of 294 unseen-position trials never touch the
   object. The adapted motion, not the extra object positions, is what makes generated data useful.
-* Doubling training steps for the real-only policy does not help (24% inside, 38% beyond, 1 seed).
-  <!-- GEN200LONG -->
+* **With twice the training, the picture changes.** Real-only does not improve (24% inside, 38% beyond), while the
+  generated-data policy reaches 76% inside and 65% beyond (Fisher p = 8e-6 and 0.006; paired McNemar 22/2 and 24/8
+  discordant trials) with no loss at the demonstrated marks (62%). This supports under-training as the main reason
+  the planned comparison showed no effect. It was run after seeing the main results and with one seed each, so it is
+  evidence for the next experiment (all conditions trained to convergence, 3 seeds), not a confirmed result.
 
 ## 6. Predictions vs outcome
 
@@ -119,19 +144,20 @@ position) with identical initial conditions for every policy. Full tables: [resu
 | T3 | identified actuators reduce held-out tracking error on every arm joint | every joint improves | right |
 | R1 | ≥ 4/6 real successes at interpolation marks, extrapolation no better | 4/4 at mark 1 (the layout had one interpolation mark); 0/4 at mark 6 | right |
 | P1 | real-only: ≥ 50% at seen marks, ≤ 20% beyond | 62% seen, but 31% beyond | **wrong**: real-only does not purely memorise here |
-| P2 | generated > real, significant beyond the demos | 34% vs 31%, p = 0.5 | **wrong** |
+| P2 | generated > real, significant beyond the demos | 34% vs 31%, p = 0.5 at the planned budget; 65% vs 38%, p = 0.006 with 2× training (post-hoc, 1 seed) | **wrong as pre-registered**; supported post hoc |
 | P3 | naive-shift does not beat real | 2–4% vs 31–35% | right |
-| P4 | generated loses ≤ 10 points at seen marks | 62% → 33% | **wrong** |
+| P4 | generated loses ≤ 10 points at seen marks | 62% → 33% at the planned budget; 62% → 62% with 2× training | **wrong as pre-registered** |
 | P5 | inside ≥ beyond for every condition | 35/31, 36/34, 4/2 | right |
 | F1 | real-only failures mostly no contact | mostly *pushed* (113 of 199); no contact is the naive-shift signature (186) | **wrong** |
 | A1 | shifting before the descent beats shifting during it | 71% vs 38% | right |
 | A2, A3 | amount of generated data; physics filter | not run (time) | not tested |
 
-## 7. Why generated data did not raise success, and what I would change
+## 7. Why generated data did not raise success at the planned budget, and what I would change
 
-1. **Under-training.** 8000 steps are about 24 passes over the real-only data but 1.3 over the generated set. Validation
-   success was still rising at the last checkpoint for most runs, and seed variance is large.
-   *Next:* train to convergence with the same number of passes per condition.
+1. **Under-training** (the main reason, supported by the 2× runs). 8000 steps are about 24 passes over the real-only
+   data but 1.3 over the generated set. Validation success was still rising at the last checkpoint, seed variance was
+   large, and doubling the steps lifted the generated-data policy to 76% / 65% while real-only stayed put.
+   *Next:* train every condition to convergence with 3 seeds.
 2. **The carrying phase of the generator.** The shift is removed during transport, so every generated demonstration
    carries the object along a different path. That matches the failure shift towards "lifted, not delivered".
    *Next:* anchor the transport segment to the box so it is identical across generated demonstrations.
@@ -192,7 +218,7 @@ repository (size); everything derived from them is, in `results/`.
 ```
 real2sim/   sim.py (twin + table layout)   data.py (datasets, demonstrations, replay)   kinematics.py
             generate.py (the method)       hardware.py (real arm)                       stats.py
-scripts/    record_real  sysid  prepare_data  experiments  evaluate  execute_real  analyse
+scripts/    record_real  sysid  prepare_data  experiments  evaluate  execute_real  analyse  view
 config/     table layout, arm calibration       sim/  MuJoCo scene, SO-101 model, identified actuators
 results/    every number, figure and video in this README
 ```

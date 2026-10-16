@@ -50,6 +50,7 @@ Success with 95% Wilson intervals, pooled over training seeds; checkpoints chose
 | real + 200 generated | 3 | 8/24 = 33% [18, 53] | 41/114 = 36% [28, 45] | 62/180 = 34% [28, 42] |
 | real + 200 naive-shift | 3 | 1/24 = 4% [1, 20] | 4/114 = 4% [1, 9] | 4/180 = 2% [1, 6] |
 | real only, 2x steps (post-hoc) | 1 | 5/8 = 62% [31, 86] | 9/38 = 24% [13, 39] | 23/60 = 38% [27, 51] |
+| real + 200 generated, 2x steps (post-hoc) | 1 | 5/8 = 62% [31, 86] | 29/38 = 76% [61, 87] | 39/60 = 65% [52, 76] |
 
 **Per seed** (success %):
 
@@ -67,6 +68,8 @@ Success with 95% Wilson intervals, pooled over training seeds; checkpoints chose
 | real only | real + 200 naive-shift | extrap | 2.4e-14 | 1 / 52, p = 1.2e-14 |
 | real + 200 naive-shift | real + 200 generated | interp | 2.38e-10 | 39 / 2, p = 7.84e-10 |
 | real + 200 naive-shift | real + 200 generated | extrap | 7.26e-17 | 60 / 2, p = 8.47e-16 |
+| real only, 2x steps (post-hoc) | real + 200 generated, 2x steps (post-hoc) | interp | 8.45e-06 | 22 / 2, p = 3.59e-05 |
+| real only, 2x steps (post-hoc) | real + 200 generated, 2x steps (post-hoc) | extrap | 0.00591 | 24 / 8, p = 0.007 |
 
 **How the trials ended** (interpolation + extrapolation, pooled). "Lifted" = success + lifted but not delivered.
 
@@ -76,6 +79,7 @@ Success with 95% Wilson intervals, pooled over training seeds; checkpoints chose
 | real + 200 generated | 103 | 1 | 66 | 124 | 227/294 = 77% [72, 82] |
 | real + 200 naive-shift | 8 | 186 | 85 | 15 | 23/294 = 8% [5, 11] |
 | real only, 2x steps (post-hoc) | 32 | 2 | 39 | 25 | 57/98 = 58% [48, 67] |
+| real + 200 generated, 2x steps (post-hoc) | 68 | 0 | 11 | 19 | 87/98 = 89% [81, 94] |
 
 **Exploratory, not pre-registered:** is the object lifted at all (interpolation + extrapolation)?
 
@@ -84,6 +88,7 @@ Success with 95% Wilson intervals, pooled over training seeds; checkpoints chose
 | real only | real + 200 generated | 175/294 = 60% [54, 65] | 227/294 = 77% [72, 82] | 5.5e-06 |
 | real only | real + 200 naive-shift | 175/294 = 60% [54, 65] | 23/294 = 8% [5, 11] | 2.9e-43 |
 | real + 200 naive-shift | real + 200 generated | 23/294 = 8% [5, 11] | 227/294 = 77% [72, 82] | 8e-72 |
+| real only, 2x steps (post-hoc) | real + 200 generated, 2x steps (post-hoc) | 57/98 = 58% [48, 67] | 87/98 = 89% [81, 94] | 1.6e-06 |
 
 ![success over the table](figures/success_heatmaps.png)
 
