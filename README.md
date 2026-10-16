@@ -11,6 +11,11 @@ policy from memorising object positions, which is the failure that sank the VLA 
 *One real demonstration (left) and the twin replaying the same leader commands
 through identified actuator models (right).*
 
+![real cameras](results/media/real_demo_cameras.gif)
+
+*The recorded data for one demonstration: the follower's wrist camera and the side
+camera, stored with the 30 Hz joint commands and positions in the LeRobot dataset.*
+
 <!-- TLDR -->
 
 ---

@@ -26,8 +26,8 @@ Object position recovered from each real grasp (forward kinematics at the jaw st
 
 | mark | role | success |
 |---|---|---|
-| 1 | interp | 3/3 = 100% [44, 100] |
-| 6 | extrap | 0/3 = 0% [0, 56] |
+| 1 | interp | 4/4 = 100% [51, 100] |
+| 6 | extrap | 0/4 = 0% [0, 49] |
 
 ## Demonstration generation (physics success of generated trajectories)
 
@@ -37,3 +37,42 @@ Object position recovered from each real grasp (forward kinematics at the jaw st
 | displacement ramped during the descent (ablation) | 75/200 = 38% [31, 44] |
 | naive shift: source motion unchanged (negative control) | 6/200 = 3% [1, 6] |
 | method, as rendered for training | 200/277 = 72% [67, 77] |
+
+## Policies (ACT, closed loop in simulation)
+
+Success with 95% Wilson intervals, pooled over training seeds. Checkpoints were chosen on validation positions only.
+
+| condition | seeds | seen spots | interpolation | extrapolation |
+|---|---|---|---|---|
+| real only | 3 | 15/24 = 62% [43, 79] | 40/114 = 35% [27, 44] | 55/180 = 31% [24, 38] |
+| real + 200 generated | 2 | 3/16 = 19% [7, 43] | 23/76 = 30% [21, 41] | 26/120 = 22% [15, 30] |
+| real + 200 naive-shift | 1 | 1/8 = 12% [2, 47] | 2/38 = 5% [1, 17] | 3/60 = 5% [2, 14] |
+
+**Seed spread** (success % per training seed):
+
+- real only: seen 62, 62, 62; interp 34, 37, 34; extrap 27, 27, 38
+- real + 200 generated: seen 0, 38; interp 26, 34; extrap 17, 27
+- real + 200 naive-shift: seen 12; interp 5; extrap 5
+
+**Tests** (pooled over seeds; Fisher's exact on the 2x2 success tables, and exact McNemar on paired trials, since every policy faced identical initial conditions):
+
+| comparison | set | Fisher p | McNemar (only B wins / only A wins, p) |
+|---|---|---|---|
+| real only (A) vs real + 200 generated (B) | interp | 0.532 | 11 / 15, p = 0.557 |
+| real only (A) vs real + 200 generated (B) | extrap | 0.111 | 16 / 22, p = 0.418 |
+| real only (A) vs real + 200 naive-shift (B) | interp | 0.000254 | 1 / 12, p = 0.00342 |
+| real only (A) vs real + 200 naive-shift (B) | extrap | 1.91e-05 | 1 / 14, p = 0.000977 |
+| real + 200 naive-shift (A) vs real + 200 generated (B) | interp | 0.00174 | 9 / 1, p = 0.0215 |
+| real + 200 naive-shift (A) vs real + 200 generated (B) | extrap | 0.00445 | 9 / 2, p = 0.0654 |
+
+**Failure types** (interpolation + extrapolation trials, pooled):
+
+| condition | success | no contact | pushed | lifted, not delivered |
+|---|---|---|---|---|
+| real only | 95 | 6 | 113 | 80 |
+| real + 200 generated | 49 | 1 | 57 | 89 |
+| real + 200 naive-shift | 5 | 57 | 32 | 4 |
+
+![success over the table](figures/success_heatmaps.png)
+
+White circles: demonstrated marks; orange/red triangles: the interpolation/extrapolation marks used for the real-arm test; rectangle: the box.
